@@ -1,4 +1,4 @@
-# <span style="color: #ff1111">a</span>rch<span style="color: #ff1111">i</span>.codes
+# **a**rch**i**.codes
 
 ### TOC
 
