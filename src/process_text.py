@@ -5,7 +5,7 @@ import mongo_helpers as mh
 
 
 def get_collection_names(db_name, host='localhost', address=27017):
-    """ Returns a list of the names of the collections at the specified database.
+    """Returns a list of the names of the collections at the specified database.
 
         Args:
             db_name (str): name of database
