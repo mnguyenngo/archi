@@ -1,3 +1,6 @@
 notebooks/private/
 slides/images/
 data/corpus/
+notebooks/.ipynb_checkpoints/
+__pycache__
+data/df/
