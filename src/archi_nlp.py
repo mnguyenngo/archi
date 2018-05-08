@@ -29,17 +29,34 @@ class Archi(object):
         self.raw_data = None
         self.raw_nlp_data = None
         self.nlp = spacy.load(nlp_model_name)
+        self.trained_ids = []
 
     def get_raw_data(self, path):
         """Get raw data from pickle files"""
         df = pd.read_pickle(path)
-        df = df.drop(['_id', 'date_read'], axis=1)
+        df = df.drop(['date_read'], axis=1)
         df = df.reset_index()
         df = df.drop('index', axis=1)
         if self.raw_data is None:
             self.raw_data = df
         else:
-            self.raw_data = pd.concat([self.raw_data, df], axis=0)
+            self.raw_data = pd.concat([self.raw_data, df],
+                                      axis=0,
+                                      ignore_index=True)
+
+    def get_raw_nlp_data(self, path):
+        """Get raw data from pickle files"""
+        df = pd.read_pickle(path)
+        if self.raw_nlp_data is None:
+            self.raw_nlp_data = df
+        else:
+            self.raw_nlp_data = pd.concat([self.raw_nlp_data, df],
+                                          axis=0,
+                                          ignore_index=True)
+
+    def pickle_raw_nlp(self, path):
+        """Save the dataframe with nlp_doc to a pickle"""
+        self.raw_nlp_data.to_pickle(path)
 
     def fit_nlp(self):
         """
@@ -56,3 +73,9 @@ class Archi(object):
         """
         doc = self.nlp(code_text)
         return doc
+
+    def random_sample(self, seed=290):
+        """Returns a random row from the nlp_raw_data"""
+        return pd.self.raw_nlp_data.sample(n=1,
+                                           replace=False,
+                                           random_state=seed)
