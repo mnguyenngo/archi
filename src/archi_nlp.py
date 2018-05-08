@@ -26,8 +26,8 @@ class Archi(object):
         """
 
         self._created_date = dt.datetime.today()
-        self.raw_data = None  # dataframe
-        self.trained_data = None
+        self.raw_data = None
+        self.raw_nlp_data = None
         self.nlp = spacy.load(nlp_model_name)
 
     def get_raw_data(self, path):
@@ -41,19 +41,18 @@ class Archi(object):
         else:
             self.raw_data = pd.concat([self.raw_data, df], axis=0)
 
-    def fit_nlp(self, nlp):
+    def fit_nlp(self):
         """
             ARGS
             ----
             nlp: spacy nlp model object
         """
-        # self.trained_data = self.raw_data.copy()
-        # self.trained_data = self.add_nlp_doc_col()
-        pass
+        self.raw_nlp_data = self.raw_data.copy()
+        self.raw_nlp_data['nlp_doc'] = (self.raw_nlp_data['code']
+                                        .apply(lambda x: self.add_nlp_doc(x)))
 
-    def add_nlp_doc_col(self):
+    def add_nlp_doc(self, code_text):
         """Add column with nlp doc object for code text
         """
-        # doc = self.nlp(code_text)
-        # return doc
-        pass
+        doc = self.nlp(code_text)
+        return doc
