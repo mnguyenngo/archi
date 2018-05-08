@@ -87,10 +87,13 @@ class Archi(object):
         df = df.drop('index', axis=1)
         return df
 
-    def prep_ner_train(self):
+    def build_ner_train(self):
+        """Initializes ner train data"""
         if self.raw_ner_data is None:
             self.raw_ner_data = self.random_sample()
 
+    def review_ner_train(self):
+        """Serves one ner object for user to review"""
         if len(self.raw_ner_data) == 0:
             print("No raw ner data left. Train the model with archi.train()")
             return None
@@ -99,8 +102,9 @@ class Archi(object):
             last_idx = len(self.raw_ner_data) - 1
             ner_data = self.raw_ner_data.loc[last_idx]
             self.raw_ner_data = self.raw_ner_data.drop(last_idx, axis=0)
-            train_obj = self.format_ner_data(ner_data['nlp_doc'])
-            return train_obj
+            ent_data, ent_w_word = self.format_ner_data(ner_data['nlp_doc'])
+            ner_data = NER_data(ent_data, ent_w_word)
+            return ner_data
 
     def format_ner_data(self, doc):
         """Serve reviewer a row from the random_sample of the data.
@@ -113,13 +117,14 @@ class Archi(object):
         text = doc.text
         ent_dict = {'entities': [(ent.start,
                                   ent.end,
-                                  ent.label_) for ent in doc.ents],
-                    'ent_word': [(ent.text,
-                                  ent.start,
-                                  ent.end,
                                   ent.label_) for ent in doc.ents]}
+        ent_formatted = {'ent_word': [(ent.text,
+                                       ent.start,
+                                       ent.end,
+                                       ent.label_) for ent in doc.ents]}
         train_obj = (text, ent_dict)
-        return train_obj
+        view_obj = (text, ent_formatted)
+        return train_obj, view_obj
 
     def submit_ner_train_data(self, ner_data):
         if self.ner_train_data is None:
@@ -135,16 +140,40 @@ class Archi(object):
 
 
 class NER_data(object):
-    def __init__(self, ent_data):
+    def __init__(self, ent_data, ent_dict_w_word):
         self.ent_data = ent_data
+        self.view_data = ent_dict_w_word
         # self.text = ent_data[0]
         # self.ent_dict = ent_data[1]
 
-    def add_ent(self, idx, text, label, start, end):
-        pass
+    def add_ent(self, text, label):
+        if text in self.ent_data[0]:
+            # if text is multiple words, extra check to see if index is correct
+            if len(text.split()) > 1:
+                check_1 = self.ent_data[0].split().index(text.split()[0])
+                check_2 = self.ent_data[0].split().index(text.split()[1])
+                if check_2 == check_1 + 1:
+                    start = self.ent_data[0].split().index(text.split()[0])
+                else:
+                    return None
+            else:
+                start = self.ent_data[0].split().index(text)
+            end = start + len(text.split())
 
-    def del_ent(self, idx):
-        pass
+            # add to ent_data
+            self.ent_data[1]['entities'].append((start, end, label))
+            self.ent_data[1]['entities'] = list(
+                                           set(self.ent_data[1]['entities']))
+            self.ent_data[1]['entities'].sort()
 
-    def modify_ent(self, idx, text, label, start, end):
+            # add to view_data
+            self.view_data[1]['ent_word'].append((text, start, end, label))
+            self.view_data[1]['ent_word'] = list(
+                                           set(self.ent_data[1]['entities']))
+            self.view_data[1]['ent_word'].sort()
+            print(self.view_data)
+        else:
+            return None
+
+    def modify_ent(self, text, label, start, end):
         pass
