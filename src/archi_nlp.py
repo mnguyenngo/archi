@@ -18,11 +18,11 @@ class Archi(object):
 
     def __init__(self, nlp_model_name):
         """
-            ARGS
-            ----
-            raw_data: dataframe; may need to change to different format when
-                      deployed
-            trained_data: dataframe; same as raw data
+        ARGS
+        ----
+        raw_data: dataframe; may need to change to different format when
+                  deployed
+        trained_data: dataframe; same as raw data
         """
 
         self._created_date = dt.datetime.today()
@@ -57,6 +57,14 @@ class Archi(object):
             self.raw_nlp_data = pd.concat([self.raw_nlp_data, df],
                                           axis=0,
                                           ignore_index=True)
+
+    def clean_newline(self, code_text):
+        """Replace newline characters with a space
+        Called by get_raw_data
+        """
+        if '\n' in code_text:
+            code_text = code_text.replace('\n', ' ')
+        return code_text
 
     def pickle_raw_nlp(self, path):
         """Save the dataframe with nlp_doc to a pickle"""
@@ -107,10 +115,10 @@ class Archi(object):
 
     def format_ner_data(self, doc):
         """Serve reviewer a row from the random_sample of the data.
-            Reviewer will make modifications to the entity results and send
-            the object to the train dataset.
+        Reviewer will make modifications to the entity results and send
+        the object to the train dataset.
 
-            Called by prep_ner_train()
+        Called by prep_ner_train()
         """
         # doc = row['nlp_doc'].values[0]
         text = doc.text
@@ -126,19 +134,26 @@ class Archi(object):
         return train_obj, view_obj
 
     def submit_ner_train_data(self, ner_data):
+        """Collects NER data for model training"""
         if self.ner_train_data is None:
             self.ner_train_data = [ner_data]
         else:
-            self.ner_train_data.append(ner_data)
-
-    def clean_newline(self, code_text):
-        """Replace newline characters with a space"""
-        if '\n' in code_text:
-            code_text = code_text.replace('\n', ' ')
-        return code_text
+            self.ner_train_data.append(ner_data.ent_data)
 
 
 class NER_data(object):
+    """Data for training a spacy nlp model in labeling named entities
+
+    Attributes:
+        train_obj (tuple(str, dict)): in the format for training according to
+        spacy docs
+        view_obj (tuple(str, dict)): for reviewer, includes text that is being
+        labeled
+
+    Returns:
+        NER_data object
+    """
+
     def __init__(self, train_obj, view_obj):
         self.ent_data = train_obj
         self.view_data = view_obj
@@ -146,6 +161,7 @@ class NER_data(object):
         # self.ent_dict = ent_data[1]
 
     def add_ent(self, text, label):
+        """Locates the text and applies the label to the text"""
         if text in self.ent_data[0]:
             # if text is multiple words, extra check to see if index is correct
             if len(text.split()) > 1:
@@ -167,6 +183,7 @@ class NER_data(object):
             raise ValueError
 
     def _add_ent(self, text, start, end, label):
+        """Helper function for add_ent()"""
         for attr in [self.ent_data, self.view_data]:
             if attr == self.ent_data:
                 # add to ent_data
@@ -180,32 +197,16 @@ class NER_data(object):
             else:
                 attr[1]['entities'].sort(key=lambda x: x[1])
 
-    def modify_ent(self, text, start=None, end=None, label=None):
+    def modify_label(self, text, label=None):
+        """Locates the text and modifies the entity data"""
         for tup in self.view_data[1]['entities']:
             if text in tup:
-                old_start = tup[1]
-                old_end = tup[2]
-                old_label = tup[3]
-
-                # if start, end, label is not given by user,
-                # set to existing value
-                # for idx, attr in enumerate([start, end, label]):
-                #     old_attr = [old_start, old_end, old_label]
-                #     if attr is None:
-                #         attr = old_attr[idx]
-
-                if start is None:
-                    start = old_start
-                if end is None:
-                    end = old_end
-                if label is None:
-                    label = old_label
-
-                self._del_ent(text, old_start, old_end, old_label)
-                self._add_ent(text, start, end, label)
-        print(self.view_data)
+                self.del_ent(text)
+                self.add_ent(text, label)
+        # print(self.view_data)
 
     def del_ent(self, text):
+        """Locates the text in a doc and deletes entity label"""
         for tup in self.view_data[1]['entities']:
             if text in tup:
                 start = tup[1]
@@ -218,6 +219,7 @@ class NER_data(object):
                 raise ValueError
 
     def _del_ent(self, text, start, end, label):
+        """Helper function for del_ent()"""
         for attr in [self.ent_data, self.view_data]:
             if attr == self.ent_data:
                 # add to ent_data
