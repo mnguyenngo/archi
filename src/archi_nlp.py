@@ -78,11 +78,10 @@ class Archi(object):
         doc = self.nlp(code_text)
         return doc
 
-    def random_sample(self, n=150, seed=290):
+    def random_sample(self, n=150):
         """Returns a random row from the nlp_raw_data"""
         df = self.raw_nlp_data.sample(n=n,
-                                      replace=False,
-                                      random_state=seed)
+                                      replace=False)
         df = df.reset_index()
         df = df.drop('index', axis=1)
         return df
@@ -118,7 +117,7 @@ class Archi(object):
         ent_dict = {'entities': [(ent.start,
                                   ent.end,
                                   ent.label_) for ent in doc.ents]}
-        ent_formatted = {'ent_word': [(ent.text,
+        ent_formatted = {'entities': [(ent.text,
                                        ent.start,
                                        ent.end,
                                        ent.label_) for ent in doc.ents]}
@@ -140,9 +139,9 @@ class Archi(object):
 
 
 class NER_data(object):
-    def __init__(self, ent_data, ent_dict_w_word):
-        self.ent_data = ent_data
-        self.view_data = ent_dict_w_word
+    def __init__(self, train_obj, view_obj):
+        self.ent_data = train_obj
+        self.view_data = view_obj
         # self.text = ent_data[0]
         # self.ent_dict = ent_data[1]
 
@@ -155,25 +154,76 @@ class NER_data(object):
                 if check_2 == check_1 + 1:
                     start = self.ent_data[0].split().index(text.split()[0])
                 else:
-                    return None
+                    raise ValueError
             else:
                 start = self.ent_data[0].split().index(text)
+
             end = start + len(text.split())
 
-            # add to ent_data
-            self.ent_data[1]['entities'].append((start, end, label))
-            self.ent_data[1]['entities'] = list(
-                                           set(self.ent_data[1]['entities']))
-            self.ent_data[1]['entities'].sort()
+            self._add_ent(text, start, end, label)
 
-            # add to view_data
-            self.view_data[1]['ent_word'].append((text, start, end, label))
-            self.view_data[1]['ent_word'] = list(
-                                           set(self.ent_data[1]['entities']))
-            self.view_data[1]['ent_word'].sort()
             print(self.view_data)
         else:
-            return None
+            raise ValueError
 
-    def modify_ent(self, text, label, start, end):
-        pass
+    def _add_ent(self, text, start, end, label):
+        for attr in [self.ent_data, self.view_data]:
+            if attr == self.ent_data:
+                # add to ent_data
+                attr[1]['entities'].append((start, end, label))
+            else:
+                # add to view_data
+                attr[1]['entities'].append((text, start, end, label))
+            attr[1]['entities'] = list(set(attr[1]['entities']))
+            if attr == self.ent_data:
+                attr[1]['entities'].sort()
+            else:
+                attr[1]['entities'].sort(key=lambda x: x[1])
+
+    def modify_ent(self, text, start=None, end=None, label=None):
+        for tup in self.view_data[1]['entities']:
+            if text in tup:
+                old_start = tup[1]
+                old_end = tup[2]
+                old_label = tup[3]
+
+                # if start, end, label is not given by user,
+                # set to existing value
+                # for idx, attr in enumerate([start, end, label]):
+                #     old_attr = [old_start, old_end, old_label]
+                #     if attr is None:
+                #         attr = old_attr[idx]
+
+                if start is None:
+                    start = old_start
+                if end is None:
+                    end = old_end
+                if label is None:
+                    label = old_label
+
+                self._del_ent(text, old_start, old_end, old_label)
+                self._add_ent(text, start, end, label)
+        print(self.view_data)
+
+    def del_ent(self, text):
+        for tup in self.view_data[1]['entities']:
+            if text in tup:
+                start = tup[1]
+                end = tup[2]
+                label = tup[3]
+
+                self._del_ent(text, start, end, label)
+                print(self.view_data)
+            else:
+                raise ValueError
+
+    def _del_ent(self, text, start, end, label):
+        for attr in [self.ent_data, self.view_data]:
+            if attr == self.ent_data:
+                # add to ent_data
+                attr[1]['entities'].remove((start, end, label))
+            else:
+                # add to view_data
+                attr[1]['entities'].remove((text, start, end, label))
+            # attr[1]['entities'] = list(set(attr[1]['entities']))
+            # attr[1]['entities'].sort()
