@@ -71,22 +71,19 @@ class Archi(object):
         self.raw_nlp_data.to_pickle(path)
 
     def fit_nlp(self):
-        """
-            ARGS
-            ----
-            nlp: spacy nlp model object
+        """Copies the raw_data and calls add_nlp_doc to add an nlp_doc column
         """
         self.raw_nlp_data = self.raw_data.copy()
         self.raw_nlp_data['nlp_doc'] = (self.raw_nlp_data['code']
                                         .apply(self.add_nlp_doc))
 
     def add_nlp_doc(self, code_text):
-        """Add column with nlp doc object for code text
+        """Add column with nlp_doc object for code text
         """
         doc = self.nlp(code_text)
         return doc
 
-    def random_sample(self, n=150):
+    def random_sample(self, n=200):
         """Returns a random row from the nlp_raw_data"""
         df = self.raw_nlp_data.sample(n=n,
                                       replace=False)
@@ -100,9 +97,9 @@ class Archi(object):
             self.raw_ner_data = self.random_sample()
 
     def review_ner_train(self):
-        """Serves one ner object for user to review"""
+        """Serves one NER object for user to review"""
         if len(self.raw_ner_data) == 0:
-            print("No raw ner data left. Train the model with archi.train()")
+            print("No raw NER data left. Train the model with archi.train()")
             return None
 
         else:
@@ -110,7 +107,7 @@ class Archi(object):
             ner_data = self.raw_ner_data.loc[last_idx]
             self.raw_ner_data = self.raw_ner_data.drop(last_idx, axis=0)
             ent_data, ent_w_word = self.format_ner_data(ner_data['nlp_doc'])
-            ner_data = NER_data(ent_data, ent_w_word)
+            ner_data = NER_data(ent_data, ent_w_word, ner_data['nlp_doc'])
             return ner_data
 
     def format_ner_data(self, doc):
@@ -133,12 +130,38 @@ class Archi(object):
         view_obj = (text, ent_formatted)
         return train_obj, view_obj
 
+    def get_ner_train_data(self, path):
+        """Get raw nlp data from pickle files"""
+        df = pd.read_pickle(path)
+        # df['code'] = df['code'].apply(self.clean_newline)
+        if self.ner_train_data is None:
+            self.ner_train_data = df
+        else:
+            self.ner_train_data = pd.concat([self.ner_train_data, df],
+                                            axis=0,
+                                            ignore_index=True)
+
     def submit_ner_train_data(self, ner_data):
         """Collects NER data for model training"""
+        ent = ner_data.ent_data
+        ent_dict = {'string': ent[0], 'ent': ent[1]}
+        ent_df = pd.DataFrame(ent_dict)
+        ent_df = ent_df.reset_index(drop=True)
         if self.ner_train_data is None:
-            self.ner_train_data = [ner_data]
+            self.ner_train_data = ent_df
         else:
-            self.ner_train_data.append(ner_data.ent_data)
+            self.ner_train_data = pd.concat([self.ner_train_data, ent_df],
+                                            axis=0,
+                                            ignore_index=True)
+
+        path = 'data/ner/{}_ner.pkl'.format(self._created_date
+                                            .strftime("%y-%m-%d"))
+        self.ner_train_data.to_pickle(path)
+
+    def ner_train(self, min_train_size=10):
+        if len(self.ner_train_data) > min_train_size:
+            pass
+        pass
 
 
 class NER_data(object):
@@ -154,9 +177,10 @@ class NER_data(object):
         NER_data object
     """
 
-    def __init__(self, train_obj, view_obj):
+    def __init__(self, train_obj, view_obj, doc):
         self.ent_data = train_obj
         self.view_data = view_obj
+        self.doc = doc
         # self.text = ent_data[0]
         # self.ent_dict = ent_data[1]
 
@@ -164,13 +188,15 @@ class NER_data(object):
         """Locates the text and applies the label to the text"""
         if text in self.ent_data[0]:
             # if text is multiple words, extra check to see if index is correct
+            # start = 0  # init start
             if len(text.split()) > 1:
                 check_1 = self.ent_data[0].split().index(text.split()[0])
                 check_2 = self.ent_data[0].split().index(text.split()[1])
                 if check_2 == check_1 + 1:
-                    start = self.ent_data[0].split().index(text.split()[0])
-                else:
-                    raise ValueError
+                    print("Warning: check if index is correct.")
+                start = self.ent_data[0].split().index(text.split()[0])
+                # else:
+                    # raise ValueError
             else:
                 start = self.ent_data[0].split().index(text)
 
@@ -215,8 +241,8 @@ class NER_data(object):
 
                 self._del_ent(text, start, end, label)
                 print(self.view_data)
-            else:
-                raise ValueError
+            # else:
+                # raise ValueError
 
     def _del_ent(self, text, start, end, label):
         """Helper function for del_ent()"""
