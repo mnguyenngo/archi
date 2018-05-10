@@ -89,149 +89,148 @@ class Archi(object):
         doc = self.nlp(code_text)
         return doc
 
-    def random_sample(self, n=200):
-        """Returns a random row from the nlp_raw_data"""
-        df = self.raw_nlp_data.sample(n=n,
-                                      replace=False)
-        df = df.reset_index()
-        df = df.drop('index', axis=1)
-        return df
-
-    def build_ner_train(self):
-        """Initializes ner train data"""
-        if self.raw_ner_data is None:
-            self.raw_ner_data = self.random_sample()
-
-    def review_ner_train(self):
-        """Serves one NER object for user to review"""
-        if len(self.raw_ner_data) == 0:
-            print("No raw NER data left. Train the model with archi.train()")
-            return None
-
-        else:
-            last_idx = len(self.raw_ner_data) - 1
-            ner_data = self.raw_ner_data.loc[last_idx]
-            self.raw_ner_data = self.raw_ner_data.drop(last_idx, axis=0)
-            ent_data, ent_w_word = self.format_ner_data(ner_data['nlp_doc'])
-            ner_data = NER_data(ent_data, ent_w_word, ner_data['nlp_doc'])
-            return ner_data
-
-    def format_ner_data(self, doc):
-        """Serve reviewer a row from the random_sample of the data.
-        Reviewer will make modifications to the entity results and send
-        the object to the train dataset.
-
-        Called by prep_ner_train()
-        """
-        # doc = row['nlp_doc'].values[0]
-        text = doc.text
-        ent_dict = {'entities': [(ent.start,
-                                  ent.end,
-                                  ent.label_) for ent in doc.ents]}
-        ent_formatted = {'entities': [(ent.text,
-                                       ent.start,
-                                       ent.end,
-                                       ent.label_) for ent in doc.ents]}
-        train_obj = (text, ent_dict)
-        view_obj = (text, ent_formatted)
-        return train_obj, view_obj
-
-    def get_ner_train_data(self, path, n_copy=1):
-        """Get raw nlp data from pickle files"""
-        df = pd.read_pickle(path)
-        # df['code'] = df['code'].apply(self.clean_newline)
-        if self.ner_train_data is None:
-            self.ner_train_data = df
-        else:
-            self.ner_train_data = pd.concat([self.ner_train_data, df],
-                                            axis=0,
-                                            ignore_index=True)
-
-        if n_copy > 1:
-            n = int(n_copy)
-            for i in range(n):
-                self.ner_train_data = pd.concat([self.ner_train_data, df],
-                                                axis=0,
-                                                ignore_index=True)
-            self.ner_train_data = self.ner_train_data.reset_index(drop=True)
-
-
-    def submit_ner_train_data(self, NER_data_obj):
-        """Collects NER data for model training"""
-        ent = NER_data_obj.ent_data
-        ent_dict = {'string': ent[0], 'ent': ent[1]}
-        ent_df = pd.DataFrame(ent_dict)
-        ent_df = ent_df.reset_index(drop=True)
-        if self.ner_train_data is None:
-            self.ner_train_data = ent_df
-        else:
-            self.ner_train_data = pd.concat([self.ner_train_data, ent_df],
-                                            axis=0,
-                                            ignore_index=True)
-
-        path = 'data/ner/{}_ner.pkl'.format(dt.datetime.today()
-                                            .strftime("%y-%m-%d"))
-        self.ner_train_data.to_pickle(path)
-
-    # train code adapted from spacy documentation on training NER
-    def ner_train(self, new_model_name=None, min_train_size=10,
-                  output_dir=None, n_iter=1, new_label=None):
-        """Set up the pipeline and entity recognizer, and train the new entity.
-        """
-        if len(self.ner_train_data) >= min_train_size:
-            # Add entity recognizer to model if it's not in the pipeline
-            # nlp.create_pipe works for built-ins that are registered with
-            # spaCy
-            if 'ner' not in self.nlp.pipe_names:
-                ner = self.nlp.create_pipe('ner')
-                self.nlp.add_pipe(ner)
-            # otherwise, get it, so we can add labels to it
-            else:
-                ner = self.nlp.get_pipe('ner')
-
-            # add new entity label to entity recognizer
-            if new_label is not None:
-                for label in new_label:
-                    ner.add_label(label)
-
-            optimizer = self.nlp.entity.create_optimizer()
-
-            # get names of other pipes to disable them during training
-            other_pipes = ([pipe for pipe in self.nlp.pipe_names
-                            if pipe != 'ner'])
-
-            TRAIN_DATA = ([(text, {'entities': ent})
-                          for idx, (ent, text)
-                          in self.ner_train_data.iterrows()])
-
-            with self.nlp.disable_pipes(*other_pipes):  # only train NER
-                for itn in range(n_iter):
-                    random.shuffle(TRAIN_DATA)
-                    losses = {}
-                    for text, annotations in TRAIN_DATA:
-                        self.nlp.update([text], [annotations], sgd=optimizer,
-                                        drop=0.35, losses=losses)
-                    print(losses)
-
-            # save model to output directory
-            if output_dir is not None:
-                output_dir = Path(output_dir)
-                if not output_dir.exists():
-                    output_dir.mkdir()
-                if new_model_name is None:
-                    new_model_name = '{}_nlp'.format(dt.datetime.today()
-                                                     .strftime("%y-%m-%d"))
-                self.nlp.meta['name'] = new_model_name  # rename model
-                self.nlp.to_disk(output_dir)
-                print("Saved model to", output_dir)
-
-                # test the saved model
-                print("Loading from", output_dir)
-                self.nlp = spacy.load(output_dir)
-                print("Archi object has been updated to new model")
-
-        else:
-            print("Not enough training data")
+    # def random_sample(self, n=200):
+    #     """Returns a random row from the nlp_raw_data"""
+    #     df = self.raw_nlp_data.sample(n=n,
+    #                                   replace=False)
+    #     df = df.reset_index()
+    #     df = df.drop('index', axis=1)
+    #     return df
+    #
+    # def build_ner_train(self):
+    #     """Initializes ner train data"""
+    #     if self.raw_ner_data is None:
+    #         self.raw_ner_data = self.random_sample()
+    #
+    # def review_ner_train(self):
+    #     """Serves one NER object for user to review"""
+    #     if len(self.raw_ner_data) == 0:
+    #         print("No raw NER data left. Train the model with archi.train()")
+    #         return None
+    #
+    #     else:
+    #         last_idx = len(self.raw_ner_data) - 1
+    #         ner_data = self.raw_ner_data.loc[last_idx]
+    #         self.raw_ner_data = self.raw_ner_data.drop(last_idx, axis=0)
+    #         ent_data, ent_w_word = self.format_ner_data(ner_data['nlp_doc'])
+    #         ner_data = NER_data(ent_data, ent_w_word, ner_data['nlp_doc'])
+    #         return ner_data
+    #
+    # def format_ner_data(self, doc):
+    #     """Serve reviewer a row from the random_sample of the data.
+    #     Reviewer will make modifications to the entity results and send
+    #     the object to the train dataset.
+    #
+    #     Called by prep_ner_train()
+    #     """
+    #     # doc = row['nlp_doc'].values[0]
+    #     text = doc.text
+    #     ent_dict = {'entities': [(ent.start,
+    #                               ent.end,
+    #                               ent.label_) for ent in doc.ents]}
+    #     ent_formatted = {'entities': [(ent.text,
+    #                                    ent.start,
+    #                                    ent.end,
+    #                                    ent.label_) for ent in doc.ents]}
+    #     train_obj = (text, ent_dict)
+    #     view_obj = (text, ent_formatted)
+    #     return train_obj, view_obj
+    #
+    # def get_ner_train_data(self, path, n_copy=1):
+    #     """Get raw nlp data from pickle files"""
+    #     df = pd.read_pickle(path)
+    #     # df['code'] = df['code'].apply(self.clean_newline)
+    #     if self.ner_train_data is None:
+    #         self.ner_train_data = df
+    #     else:
+    #         self.ner_train_data = pd.concat([self.ner_train_data, df],
+    #                                         axis=0,
+    #                                         ignore_index=True)
+    #
+    #     if n_copy > 1:
+    #         n = int(n_copy)
+    #         for i in range(n):
+    #             self.ner_train_data = pd.concat([self.ner_train_data, df],
+    #                                             axis=0,
+    #                                             ignore_index=True)
+    #         self.ner_train_data = self.ner_train_data.reset_index(drop=True)
+    #
+    # def submit_ner_train_data(self, NER_data_obj):
+    #     """Collects NER data for model training"""
+    #     ent = NER_data_obj.ent_data
+    #     ent_dict = {'string': ent[0], 'ent': ent[1]}
+    #     ent_df = pd.DataFrame(ent_dict)
+    #     ent_df = ent_df.reset_index(drop=True)
+    #     if self.ner_train_data is None:
+    #         self.ner_train_data = ent_df
+    #     else:
+    #         self.ner_train_data = pd.concat([self.ner_train_data, ent_df],
+    #                                         axis=0,
+    #                                         ignore_index=True)
+    #
+    #     path = 'data/ner/{}_ner.pkl'.format(dt.datetime.today()
+    #                                         .strftime("%y-%m-%d"))
+    #     self.ner_train_data.to_pickle(path)
+    #
+    # # train code adapted from spacy documentation on training NER
+    # def ner_train(self, new_model_name=None, min_train_size=10,
+    #               output_dir=None, n_iter=1, new_label=None):
+    #     """Set up the pipeline and entity recognizer, and train the new entity.
+    #     """
+    #     if len(self.ner_train_data) >= min_train_size:
+    #         # Add entity recognizer to model if it's not in the pipeline
+    #         # nlp.create_pipe works for built-ins that are registered with
+    #         # spaCy
+    #         if 'ner' not in self.nlp.pipe_names:
+    #             ner = self.nlp.create_pipe('ner')
+    #             self.nlp.add_pipe(ner)
+    #         # otherwise, get it, so we can add labels to it
+    #         else:
+    #             ner = self.nlp.get_pipe('ner')
+    #
+    #         # add new entity label to entity recognizer
+    #         if new_label is not None:
+    #             for label in new_label:
+    #                 ner.add_label(label)
+    #
+    #         optimizer = self.nlp.entity.create_optimizer()
+    #
+    #         # get names of other pipes to disable them during training
+    #         other_pipes = ([pipe for pipe in self.nlp.pipe_names
+    #                         if pipe != 'ner'])
+    #
+    #         TRAIN_DATA = ([(text, {'entities': ent})
+    #                       for idx, (ent, text)
+    #                       in self.ner_train_data.iterrows()])
+    #
+    #         with self.nlp.disable_pipes(*other_pipes):  # only train NER
+    #             for itn in range(n_iter):
+    #                 random.shuffle(TRAIN_DATA)
+    #                 losses = {}
+    #                 for text, annotations in TRAIN_DATA:
+    #                     self.nlp.update([text], [annotations], sgd=optimizer,
+    #                                     drop=0.35, losses=losses)
+    #                 print(losses)
+    #
+    #         # save model to output directory
+    #         if output_dir is not None:
+    #             output_dir = Path(output_dir)
+    #             if not output_dir.exists():
+    #                 output_dir.mkdir()
+    #             if new_model_name is None:
+    #                 new_model_name = '{}_nlp'.format(dt.datetime.today()
+    #                                                  .strftime("%y-%m-%d"))
+    #             self.nlp.meta['name'] = new_model_name  # rename model
+    #             self.nlp.to_disk(output_dir)
+    #             print("Saved model to", output_dir)
+    #
+    #             # test the saved model
+    #             print("Loading from", output_dir)
+    #             self.nlp = spacy.load(output_dir)
+    #             print("Archi object has been updated to new model")
+    #
+    #     else:
+    #         print("Not enough training data")
 
 
 class NER_data(object):
