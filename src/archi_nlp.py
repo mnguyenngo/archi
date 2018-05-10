@@ -136,7 +136,7 @@ class Archi(object):
         view_obj = (text, ent_formatted)
         return train_obj, view_obj
 
-    def get_ner_train_data(self, path):
+    def get_ner_train_data(self, path, n_copy=1):
         """Get raw nlp data from pickle files"""
         df = pd.read_pickle(path)
         # df['code'] = df['code'].apply(self.clean_newline)
@@ -146,6 +146,15 @@ class Archi(object):
             self.ner_train_data = pd.concat([self.ner_train_data, df],
                                             axis=0,
                                             ignore_index=True)
+
+        if n_copy > 1:
+            n = int(n_copy)
+            for i in range(n):
+                self.ner_train_data = pd.concat([self.ner_train_data, df],
+                                                axis=0,
+                                                ignore_index=True)
+            self.ner_train_data = self.ner_train_data.reset_index(drop=True)
+
 
     def submit_ner_train_data(self, NER_data_obj):
         """Collects NER data for model training"""
