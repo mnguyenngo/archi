@@ -3,6 +3,9 @@ import pandas as pd
 import spacy
 
 import datetime as dt
+
+import random
+from pathlib import Path
 # from spacy import displacy
 
 # from nltk import Tree
@@ -141,9 +144,9 @@ class Archi(object):
                                             axis=0,
                                             ignore_index=True)
 
-    def submit_ner_train_data(self, ner_data):
+    def submit_ner_train_data(self, NER_data_obj):
         """Collects NER data for model training"""
-        ent = ner_data.ent_data
+        ent = NER_data_obj.ent_data
         ent_dict = {'string': ent[0], 'ent': ent[1]}
         ent_df = pd.DataFrame(ent_dict)
         ent_df = ent_df.reset_index(drop=True)
@@ -154,14 +157,69 @@ class Archi(object):
                                             axis=0,
                                             ignore_index=True)
 
-        path = 'data/ner/{}_ner.pkl'.format(self._created_date
+        path = 'data/ner/{}_ner.pkl'.format(dt.datetime.today()
                                             .strftime("%y-%m-%d"))
         self.ner_train_data.to_pickle(path)
 
-    def ner_train(self, min_train_size=10):
-        if len(self.ner_train_data) > min_train_size:
-            pass
-        pass
+    # train code adapted from spacy documentation on training NER
+    def ner_train(self, new_model_name=None, min_train_size=10,
+                  output_dir=None, n_iter=1, new_label=None):
+        """Set up the pipeline and entity recognizer, and train the new entity.
+        """
+        if len(self.ner_train_data) >= min_train_size:
+            # Add entity recognizer to model if it's not in the pipeline
+            # nlp.create_pipe works for built-ins that are registered with
+            # spaCy
+            if 'ner' not in self.nlp.pipe_names:
+                ner = self.nlp.create_pipe('ner')
+                self.nlp.add_pipe(ner)
+            # otherwise, get it, so we can add labels to it
+            else:
+                ner = self.nlp.get_pipe('ner')
+
+            # add new entity label to entity recognizer
+            if new_label is not None:
+                for label in new_label:
+                    ner.add_label(label)
+
+            optimizer = self.nlp.entity.create_optimizer()
+
+            # get names of other pipes to disable them during training
+            other_pipes = ([pipe for pipe in self.nlp.pipe_names
+                            if pipe != 'ner'])
+
+            TRAIN_DATA = ([(text, {'entities': ent})
+                          for idx, (ent, text)
+                          in self.ner_train_data.iterrows()])
+
+            with self.nlp.disable_pipes(*other_pipes):  # only train NER
+                for itn in range(n_iter):
+                    random.shuffle(TRAIN_DATA)
+                    losses = {}
+                    for text, annotations in TRAIN_DATA:
+                        self.nlp.update([text], [annotations], sgd=optimizer,
+                                        drop=0.35, losses=losses)
+                    print(losses)
+
+            # save model to output directory
+            if output_dir is not None:
+                output_dir = Path(output_dir)
+                if not output_dir.exists():
+                    output_dir.mkdir()
+                if new_model_name is None:
+                    new_model_name = '{}_nlp'.format(dt.datetime.today()
+                                                     .strftime("%y-%m-%d"))
+                self.nlp.meta['name'] = new_model_name  # rename model
+                self.nlp.to_disk(output_dir)
+                print("Saved model to", output_dir)
+
+                # test the saved model
+                print("Loading from", output_dir)
+                self.nlp = spacy.load(output_dir)
+                print("Archi object has been updated to new model")
+
+        else:
+            print("Not enough training data")
 
 
 class NER_data(object):
@@ -192,11 +250,10 @@ class NER_data(object):
             if len(text.split()) > 1:
                 check_1 = self.ent_data[0].split().index(text.split()[0])
                 check_2 = self.ent_data[0].split().index(text.split()[1])
-                if check_2 == check_1 + 1:
+                if check_2 != check_1 + 1:
                     print("Warning: check if index is correct.")
                 start = self.ent_data[0].split().index(text.split()[0])
-                # else:
-                    # raise ValueError
+
             else:
                 start = self.ent_data[0].split().index(text)
 
@@ -248,10 +305,8 @@ class NER_data(object):
         """Helper function for del_ent()"""
         for attr in [self.ent_data, self.view_data]:
             if attr == self.ent_data:
-                # add to ent_data
+                # delete from ent_data
                 attr[1]['entities'].remove((start, end, label))
             else:
-                # add to view_data
+                # delete from view_data
                 attr[1]['entities'].remove((text, start, end, label))
-            # attr[1]['entities'] = list(set(attr[1]['entities']))
-            # attr[1]['entities'].sort()
