@@ -4,3 +4,4 @@ notebooks/.ipynb_checkpoints/
 __pycache__
 data/nlp_df/
 data/corpus/
+src/models/nlp/

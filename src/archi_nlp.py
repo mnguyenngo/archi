@@ -157,7 +157,7 @@ class Archi(object):
                                             axis=0,
                                             ignore_index=True)
 
-        path = 'data/ner/{}_ner.pkl'.format(self._created_date
+        path = 'data/ner/{}_ner.pkl'.format(dt.datetime.today()
                                             .strftime("%y-%m-%d"))
         self.ner_train_data.to_pickle(path)
 
@@ -207,7 +207,7 @@ class Archi(object):
                 if not output_dir.exists():
                     output_dir.mkdir()
                 if new_model_name is None:
-                    new_model_name = '{}_nlp'.format(self._created_date
+                    new_model_name = '{}_nlp'.format(dt.datetime.today()
                                                      .strftime("%y-%m-%d"))
                 self.nlp.meta['name'] = new_model_name  # rename model
                 self.nlp.to_disk(output_dir)
