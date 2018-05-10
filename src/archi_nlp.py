@@ -19,7 +19,7 @@ class Archi(object):
         * ASCE 7-10
     """
 
-    def __init__(self, nlp_model_name):
+    def __init__(self, nlp_model_name=None):
         """
         ARGS
         ----
@@ -31,7 +31,10 @@ class Archi(object):
         self._created_date = dt.datetime.today()
         self.raw_data = None
         self.raw_nlp_data = None
-        self.nlp = spacy.load(nlp_model_name)
+        if nlp_model_name is None:
+            self.nlp = spacy.load('en')
+        else:
+            self.nlp = spacy.load(nlp_model_name)
         self.trained_ids = []
         self.raw_ner_data = None
         self.ner_train_data = None
