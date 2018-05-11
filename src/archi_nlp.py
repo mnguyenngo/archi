@@ -1,5 +1,5 @@
 import pandas as pd
-
+import numpy as np
 import spacy
 
 import datetime as dt
@@ -87,38 +87,39 @@ class Archi(object):
         doc = self.nlp(code_text)
         return doc
 
-    def add_keyword_cols(self):
+    def add_keyword_cols(self, predict_df):
         """Add the subj and verb columns to the raw_nlp_data"""
-        self.raw_nlp_data['ROOT'] = (self.raw_nlp_data['nlp_doc']
-                                     .apply(lambda x:
-                                     self.get_root(x, dep='ROOT', lemma=True)))
-        self.raw_nlp_data['ROOT_TOKEN'] = (self.raw_nlp_data['nlp_doc']
-                                           .apply(lambda x:
-                                           self.get_root(x,
-                                                         dep='ROOT',
-                                                         lemma=False)))
-        self.raw_nlp_data['SUBJ'] = (self.raw_nlp_data['nlp_doc']
-                                     .apply(lambda x:
-                                     self.get_token_by_dep(x,
-                                                           dep='nsubj',
-                                                           lemma=True)))
-        self.raw_nlp_data['SUBJ_TOKEN'] = (self.raw_nlp_data['nlp_doc']
-                                           .apply(lambda x:
-                                           self.get_token_by_dep(x,
-                                                                 dep='nsubj',
-                                                                 lemma=False)))
-        self.raw_nlp_data['CRIT'] = (self.raw_nlp_data['nlp_doc']
-                                     .apply(lambda x:
-                                     self.get_criteria(x,
-                                                       dep='criteria',
-                                                       lemma=True)))
-        self.raw_nlp_data['CRIT_TOKEN'] = (self.raw_nlp_data['nlp_doc']
-                                           .apply(lambda x:
-                                           self.get_criteria(x,
-                                                             dep='criteria',
-                                                             lemma=False)))
-        self.raw_nlp_data['NEG'] = (self.raw_nlp_data['nlp_doc']
-                                    .apply(self.is_root_negative))
+        json_df = pd.DataFrame()
+        json_df['nlp_doc'] = predict_df['nlp_doc']
+        json_df['ROOT'] = (predict_df['nlp_doc']
+                              .apply(lambda x:
+                              self.get_root(x, dep='ROOT', lemma=True)))
+        json_df['ROOT_TOKEN'] = (predict_df['nlp_doc']
+                                    .apply(lambda x:
+                                    self.get_root(x, dep='ROOT', lemma=False)))
+        json_df['SUBJ'] = (predict_df['nlp_doc']
+                              .apply(lambda x:
+                              self.get_token_by_dep(x,
+                                                    dep='nsubj', lemma=True)))
+        json_df['SUBJ_TOKEN'] = (predict_df['nlp_doc']
+                                    .apply(lambda x:
+                                    self.get_token_by_dep(x,
+                                                          dep='nsubj',
+                                                          lemma=False)))
+        json_df['CRIT'] = (predict_df['nlp_doc']
+                              .apply(lambda x:
+                              self.get_criteria(x,
+                                                dep='criteria',
+                                                lemma=True)))
+        json_df['CRIT_TOKEN'] = (predict_df['nlp_doc']
+                                    .apply(lambda x:
+                                    self.get_criteria(x,
+                                                      dep='criteria',
+                                                      lemma=False)))
+        json_df['NEG'] = (predict_df['nlp_doc']
+                             .apply(self.is_root_negative))
+
+        return json_df
 
     def get_root(self, doc, dep='ROOT', lemma=False):
         """Returns the root of the first sentence of the nlp doc"""
@@ -205,3 +206,23 @@ class Archi(object):
             matches = ([token for token in root.children
                        if token.dep_ == 'neg'])
             return len(matches) > 0
+
+    def predict(self, query):
+        """Returns top ten docs"""
+        qdoc = self.nlp(query)
+        top_ten = self.score_df(qdoc).sort_values(ascending=False)[:10].index
+        top_ten_df = self.raw_nlp_data.iloc[top_ten]
+        top_ten_df_json = self.add_keyword_cols(top_ten_df)
+        return top_ten_df_json
+
+    def score_df(self, qdoc):
+        scores = self.raw_nlp_data['nlp_doc'].apply(
+                 lambda x: self.cos_sim(qdoc.vector, x.vector))
+        return scores
+
+    def cos_sim(self, a, b):
+        if len(a) == len(b):
+            return (np.sum((a * b))
+                    / (np.sqrt(np.sum((a ** 2))) * np.sqrt(np.sum((b ** 2)))))
+        else:
+            return 0
