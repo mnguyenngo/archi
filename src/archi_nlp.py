@@ -4,8 +4,6 @@ import spacy
 
 import datetime as dt
 
-import random
-from pathlib import Path
 # from spacy import displacy
 
 # from nltk import Tree
@@ -89,236 +87,121 @@ class Archi(object):
         doc = self.nlp(code_text)
         return doc
 
-    def random_sample(self, n=200):
-        """Returns a random row from the nlp_raw_data"""
-        df = self.raw_nlp_data.sample(n=n,
-                                      replace=False)
-        df = df.reset_index()
-        df = df.drop('index', axis=1)
-        return df
+    def add_keyword_cols(self):
+        """Add the subj and verb columns to the raw_nlp_data"""
+        self.raw_nlp_data['ROOT'] = (self.raw_nlp_data['nlp_doc']
+                                     .apply(lambda x:
+                                     self.get_root(x, dep='ROOT', lemma=True)))
+        self.raw_nlp_data['ROOT_TOKEN'] = (self.raw_nlp_data['nlp_doc']
+                                           .apply(lambda x:
+                                           self.get_root(x,
+                                                         dep='ROOT',
+                                                         lemma=False)))
+        self.raw_nlp_data['SUBJ'] = (self.raw_nlp_data['nlp_doc']
+                                     .apply(lambda x:
+                                     self.get_token_by_dep(x,
+                                                           dep='nsubj',
+                                                           lemma=True)))
+        self.raw_nlp_data['SUBJ_TOKEN'] = (self.raw_nlp_data['nlp_doc']
+                                           .apply(lambda x:
+                                           self.get_token_by_dep(x,
+                                                                 dep='nsubj',
+                                                                 lemma=False)))
+        self.raw_nlp_data['CRIT'] = (self.raw_nlp_data['nlp_doc']
+                                     .apply(lambda x:
+                                     self.get_criteria(x,
+                                                       dep='criteria',
+                                                       lemma=True)))
+        self.raw_nlp_data['CRIT_TOKEN'] = (self.raw_nlp_data['nlp_doc']
+                                           .apply(lambda x:
+                                           self.get_criteria(x,
+                                                             dep='criteria',
+                                                             lemma=False)))
+        self.raw_nlp_data['NEG'] = (self.raw_nlp_data['nlp_doc']
+                                    .apply(self.is_root_negative))
 
-    def build_ner_train(self):
-        """Initializes ner train data"""
-        if self.raw_ner_data is None:
-            self.raw_ner_data = self.random_sample()
-
-    def review_ner_train(self):
-        """Serves one NER object for user to review"""
-        if len(self.raw_ner_data) == 0:
-            print("No raw NER data left. Train the model with archi.train()")
+    def get_root(self, doc, dep='ROOT', lemma=False):
+        """Returns the root of the first sentence of the nlp doc"""
+        if len(doc) > 0:
+            first_sent = list(doc.sents)[0]
+            if dep == 'ROOT':
+                if lemma:
+                    return first_sent.root.lemma_  # primary verb
+                else:
+                    return first_sent.root
+            else:
+                return None
+        else:
             return None
 
-        else:
-            last_idx = len(self.raw_ner_data) - 1
-            ner_data = self.raw_ner_data.loc[last_idx]
-            self.raw_ner_data = self.raw_ner_data.drop(last_idx, axis=0)
-            ent_data, ent_w_word = self.format_ner_data(ner_data['nlp_doc'])
-            ner_data = NER_data(ent_data, ent_w_word, ner_data['nlp_doc'])
-            return ner_data
-
-    def format_ner_data(self, doc):
-        """Serve reviewer a row from the random_sample of the data.
-        Reviewer will make modifications to the entity results and send
-        the object to the train dataset.
-
-        Called by prep_ner_train()
+    def get_token_by_dep(self, doc, dep='nsubj', lemma=False):
+        """Returns the lemmatized token based on the dependency passed
+        Only covers the first sentence of each provision as of 5/10.
         """
-        # doc = row['nlp_doc'].values[0]
-        text = doc.text
-        ent_dict = {'entities': [(ent.start,
-                                  ent.end,
-                                  ent.label_) for ent in doc.ents]}
-        ent_formatted = {'entities': [(ent.text,
-                                       ent.start,
-                                       ent.end,
-                                       ent.label_) for ent in doc.ents]}
-        train_obj = (text, ent_dict)
-        view_obj = (text, ent_formatted)
-        return train_obj, view_obj
 
-    def get_ner_train_data(self, path, n_copy=1):
-        """Get raw nlp data from pickle files"""
-        df = pd.read_pickle(path)
-        # df['code'] = df['code'].apply(self.clean_newline)
-        if self.ner_train_data is None:
-            self.ner_train_data = df
+        if len(doc) > 0:
+            # first_sent = list(doc.sents)[0]
+            root = self.get_root(doc)
+            if dep == 'nsubj':
+                deps = ['nsubj', 'nsubjpass']  # nominal subjects
+            matches = ([token for token in root.children
+                       if token.dep_ in deps])
+            if len(matches) > 0:
+                token = matches[0]
+                if lemma:
+                    return token.lemma_
+                else:
+                    return token
+            else:
+                return None
         else:
-            self.ner_train_data = pd.concat([self.ner_train_data, df],
-                                            axis=0,
-                                            ignore_index=True)
+            return None
 
-        if n_copy > 1:
-            n = int(n_copy)
-            for i in range(n):
-                self.ner_train_data = pd.concat([self.ner_train_data, df],
-                                                axis=0,
-                                                ignore_index=True)
-            self.ner_train_data = self.ner_train_data.reset_index(drop=True)
+    def get_criteria(self, doc, dep='criteria', lemma=False):
+        """Returns the lemmatized token based on the dependency passed
+        Currently, primarily for provisions with ROOT 'be'
 
-
-    def submit_ner_train_data(self, NER_data_obj):
-        """Collects NER data for model training"""
-        ent = NER_data_obj.ent_data
-        ent_dict = {'string': ent[0], 'ent': ent[1]}
-        ent_df = pd.DataFrame(ent_dict)
-        ent_df = ent_df.reset_index(drop=True)
-        if self.ner_train_data is None:
-            self.ner_train_data = ent_df
-        else:
-            self.ner_train_data = pd.concat([self.ner_train_data, ent_df],
-                                            axis=0,
-                                            ignore_index=True)
-
-        path = 'data/ner/{}_ner.pkl'.format(dt.datetime.today()
-                                            .strftime("%y-%m-%d"))
-        self.ner_train_data.to_pickle(path)
-
-    # train code adapted from spacy documentation on training NER
-    def ner_train(self, new_model_name=None, min_train_size=10,
-                  output_dir=None, n_iter=1, new_label=None):
-        """Set up the pipeline and entity recognizer, and train the new entity.
+        TODO:
+        - [ ] Some provisions have multiple criteria. This method only
+        retrieves the first occuring criteria.
         """
-        if len(self.ner_train_data) >= min_train_size:
-            # Add entity recognizer to model if it's not in the pipeline
-            # nlp.create_pipe works for built-ins that are registered with
-            # spaCy
-            if 'ner' not in self.nlp.pipe_names:
-                ner = self.nlp.create_pipe('ner')
-                self.nlp.add_pipe(ner)
-            # otherwise, get it, so we can add labels to it
+        if len(doc) > 0:
+            if dep == 'criteria':
+                # adj modifier (matches with ROOT 'be')
+                deps = ['amod', 'prep']
+            root = self.get_root(doc)  # dtype: spaCy token
+
+            matches = [token for token in root.children if token.dep_ in deps]
+            if len(matches) > 0:
+                criteria = matches[0]  # dtype: spaCy token
+                if criteria.dep_ == 'prep':
+                    pobj = ([token for token in criteria.children
+                             if token.dep_ == 'pobj'])
+                    if len(pobj) > 0:
+                        criteria = pobj[0]  # dtype: spaCy token
+                        # match_chunk = []
+                        # for chunk in doc.noun_chunks:
+                        #     if criteria in chunk:
+                        #         match_chunk.append(chunk)
+                        # if len(match_chunk) > 0:
+                        #     return match_chunk[-1].text
+                if lemma:
+                    return criteria.lemma_
+                else:
+                    return criteria
             else:
-                ner = self.nlp.get_pipe('ner')
-
-            # add new entity label to entity recognizer
-            if new_label is not None:
-                for label in new_label:
-                    ner.add_label(label)
-
-            optimizer = self.nlp.entity.create_optimizer()
-
-            # get names of other pipes to disable them during training
-            other_pipes = ([pipe for pipe in self.nlp.pipe_names
-                            if pipe != 'ner'])
-
-            TRAIN_DATA = ([(text, {'entities': ent})
-                          for idx, (ent, text)
-                          in self.ner_train_data.iterrows()])
-
-            with self.nlp.disable_pipes(*other_pipes):  # only train NER
-                for itn in range(n_iter):
-                    random.shuffle(TRAIN_DATA)
-                    losses = {}
-                    for text, annotations in TRAIN_DATA:
-                        self.nlp.update([text], [annotations], sgd=optimizer,
-                                        drop=0.35, losses=losses)
-                    print(losses)
-
-            # save model to output directory
-            if output_dir is not None:
-                output_dir = Path(output_dir)
-                if not output_dir.exists():
-                    output_dir.mkdir()
-                if new_model_name is None:
-                    new_model_name = '{}_nlp'.format(dt.datetime.today()
-                                                     .strftime("%y-%m-%d"))
-                self.nlp.meta['name'] = new_model_name  # rename model
-                self.nlp.to_disk(output_dir)
-                print("Saved model to", output_dir)
-
-                # test the saved model
-                print("Loading from", output_dir)
-                self.nlp = spacy.load(output_dir)
-                print("Archi object has been updated to new model")
-
+                return None
         else:
-            print("Not enough training data")
+            return None
 
+    def is_root_negative(self, doc):
+        """Returns bool if ROOT is negative or not
+        Only covers the first sentence of each provision as of 5/10.
+        """
 
-class NER_data(object):
-    """Data for training a spacy nlp model in labeling named entities
-
-    Attributes:
-        train_obj (tuple(str, dict)): in the format for training according to
-        spacy docs
-        view_obj (tuple(str, dict)): for reviewer, includes text that is being
-        labeled
-
-    Returns:
-        NER_data object
-    """
-
-    def __init__(self, train_obj, view_obj, doc):
-        self.ent_data = train_obj
-        self.view_data = view_obj
-        self.doc = doc
-        # self.text = ent_data[0]
-        # self.ent_dict = ent_data[1]
-
-    def add_ent(self, text, label):
-        """Locates the text and applies the label to the text"""
-        if text in self.ent_data[0]:
-            # if text is multiple words, extra check to see if index is correct
-            # start = 0  # init start
-            if len(text.split()) > 1:
-                check_1 = self.ent_data[0].split().index(text.split()[0])
-                check_2 = self.ent_data[0].split().index(text.split()[1])
-                if check_2 != check_1 + 1:
-                    print("Warning: check if index is correct.")
-                start = self.ent_data[0].split().index(text.split()[0])
-
-            else:
-                start = self.ent_data[0].split().index(text)
-
-            end = start + len(text.split())
-
-            self._add_ent(text, start, end, label)
-
-            print(self.view_data)
-        else:
-            raise ValueError
-
-    def _add_ent(self, text, start, end, label):
-        """Helper function for add_ent()"""
-        for attr in [self.ent_data, self.view_data]:
-            if attr == self.ent_data:
-                # add to ent_data
-                attr[1]['entities'].append((start, end, label))
-            else:
-                # add to view_data
-                attr[1]['entities'].append((text, start, end, label))
-            attr[1]['entities'] = list(set(attr[1]['entities']))
-            if attr == self.ent_data:
-                attr[1]['entities'].sort()
-            else:
-                attr[1]['entities'].sort(key=lambda x: x[1])
-
-    def modify_label(self, text, label=None):
-        """Locates the text and modifies the entity data"""
-        for tup in self.view_data[1]['entities']:
-            if text in tup:
-                self.del_ent(text)
-                self.add_ent(text, label)
-        # print(self.view_data)
-
-    def del_ent(self, text):
-        """Locates the text in a doc and deletes entity label"""
-        for tup in self.view_data[1]['entities']:
-            if text in tup:
-                start = tup[1]
-                end = tup[2]
-                label = tup[3]
-
-                self._del_ent(text, start, end, label)
-                print(self.view_data)
-            # else:
-                # raise ValueError
-
-    def _del_ent(self, text, start, end, label):
-        """Helper function for del_ent()"""
-        for attr in [self.ent_data, self.view_data]:
-            if attr == self.ent_data:
-                # delete from ent_data
-                attr[1]['entities'].remove((start, end, label))
-            else:
-                # delete from view_data
-                attr[1]['entities'].remove((text, start, end, label))
+        if len(doc) > 0:
+            # first_sent = list(doc.sents)[0]
+            root = self.get_root(doc)
+            matches = ([token for token in root.children
+                       if token.dep_ == 'neg'])
+            return len(matches) > 0
