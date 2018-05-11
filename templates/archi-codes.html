@@ -5,27 +5,34 @@
     <title>AI on Building Regulations</title>
     <meta name="description" content="NLP on Building Regulations">
     <meta name="author" content="Nguyen Ngo">
-
+    <script type="text/javascript" src="{{ url_for('static', filename='jquery.js') }}">  </script>
+    <script type="text/javascript" src="{{ url_for('static', filename='archi-codes.js') }}"> </script>
   </head>
 
   <body>
 
     <h1>Ask Archi</h1>
-    <p>This app will help you navigate the domain of building regulations</p>
-    <p>Please enter your research topic below</p>
+    <p>Archi will help you navigate the domain of building regulations</p>
+    <!-- <p>Please enter your research topic below</p> -->
 
     <div>
       <!-- These have id's so that later we can pull out data using js. -->
-      <span>Research topic:</span>
-      <textarea id="query" name="query" rows="4" cols="50" placeholder="Enter your research topic here" wrap="soft">
-      </textarea>
+      <!-- <p>U+1F916;: Hello Human.</p> -->
+      <p>Archi: Hello Human</p>
+
+      <textarea id="query" name="query" rows="4" cols="50" placeholder="Enter your research topic here" wrap="soft"></textarea>
     </div>
 
     <div>
-      <button type="button">RUN</button>
+      <button type="button" id="solve">RUN</button>
     </div>
 
-    <!-- <p>Hello World!</p> -->
+    <div>
+      <!-- The span has an id so that later we can fill in the solution
+           using js. -->
+      <p> The solution is: <span id="solution"></span> </p>
+    </div>
+
 
   </body>
 </html>
