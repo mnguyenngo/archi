@@ -4,9 +4,12 @@
 
     <title>AI on Building Regulations</title>
     <meta name="description" content="NLP on Building Regulations">
+
+    <!-- load the jquery.js before the js for the app -->
+    <script type="text/javascript" src={{ url_for('static', filename='jquery.js') }}> </script>
     <meta name="author" content="Nguyen Ngo">
     <script type="text/javascript" src={{ url_for('static', filename='archi-codes.js') }}>  </script>
-    <script type="text/javascript" src={{ url_for('static', filename='jquery.js') }}> </script>
+
   </head>
 
   <body>
@@ -30,8 +33,13 @@
     <div>
       <!-- The span has an id so that later we can fill in the solution
            using js. -->
-      <p> The solution is: <span id="solution"></span> </p>
+      <!-- <p>Your query:</p> -->
+      <p id="solution"></p>
+      <div id="result-table"></div>
+      <!-- <p id="first-match-text"></p> -->
     </div>
+
+
 
 
   </body>
