@@ -86,3 +86,122 @@ class Archi(object):
         """
         doc = self.nlp(code_text)
         return doc
+
+    def add_keyword_cols(self):
+        """Add the subj and verb columns to the raw_nlp_data"""
+        self.raw_nlp_data['ROOT'] = (self.raw_nlp_data['nlp_doc']
+                                     .apply(lambda x:
+                                     self.get_root(x, dep='ROOT', lemma=True)))
+        self.raw_nlp_data['ROOT_TOKEN'] = (self.raw_nlp_data['nlp_doc']
+                                           .apply(lambda x:
+                                           self.get_root(x,
+                                                         dep='ROOT',
+                                                         lemma=False)))
+        self.raw_nlp_data['SUBJ'] = (self.raw_nlp_data['nlp_doc']
+                                     .apply(lambda x:
+                                     self.get_token_by_dep(x,
+                                                           dep='nsubj',
+                                                           lemma=True)))
+        self.raw_nlp_data['SUBJ_TOKEN'] = (self.raw_nlp_data['nlp_doc']
+                                           .apply(lambda x:
+                                           self.get_token_by_dep(x,
+                                                                 dep='nsubj',
+                                                                 lemma=False)))
+        self.raw_nlp_data['CRIT'] = (self.raw_nlp_data['nlp_doc']
+                                     .apply(lambda x:
+                                     self.get_criteria(x,
+                                                       dep='criteria',
+                                                       lemma=True)))
+        self.raw_nlp_data['CRIT_TOKEN'] = (self.raw_nlp_data['nlp_doc']
+                                           .apply(lambda x:
+                                           self.get_criteria(x,
+                                                             dep='criteria',
+                                                             lemma=False)))
+        self.raw_nlp_data['NEG'] = (self.raw_nlp_data['nlp_doc']
+                                    .apply(self.is_root_negative))
+
+    def get_root(self, doc, dep='ROOT', lemma=False):
+        """Returns the root of the first sentence of the nlp doc"""
+        if len(doc) > 0:
+            first_sent = list(doc.sents)[0]
+            if dep == 'ROOT':
+                if lemma:
+                    return first_sent.root.lemma_  # primary verb
+                else:
+                    return first_sent.root
+            else:
+                return None
+        else:
+            return None
+
+    def get_token_by_dep(self, doc, dep='nsubj', lemma=False):
+        """Returns the lemmatized token based on the dependency passed
+        Only covers the first sentence of each provision as of 5/10.
+        """
+
+        if len(doc) > 0:
+            # first_sent = list(doc.sents)[0]
+            root = self.get_root(doc)
+            if dep == 'nsubj':
+                deps = ['nsubj', 'nsubjpass']  # nominal subjects
+            matches = ([token for token in root.children
+                       if token.dep_ in deps])
+            if len(matches) > 0:
+                token = matches[0]
+                if lemma:
+                    return token.lemma_
+                else:
+                    return token
+            else:
+                return None
+        else:
+            return None
+
+    def get_criteria(self, doc, dep='criteria', lemma=False):
+        """Returns the lemmatized token based on the dependency passed
+        Currently, primarily for provisions with ROOT 'be'
+
+        TODO:
+        - [ ] Some provisions have multiple criteria. This method only
+        retrieves the first occuring criteria.
+        """
+        if len(doc) > 0:
+            if dep == 'criteria':
+                # adj modifier (matches with ROOT 'be')
+                deps = ['amod', 'prep']
+            root = self.get_root(doc)  # dtype: spaCy token
+
+            matches = [token for token in root.children if token.dep_ in deps]
+            if len(matches) > 0:
+                criteria = matches[0]  # dtype: spaCy token
+                if criteria.dep_ == 'prep':
+                    pobj = ([token for token in criteria.children
+                             if token.dep_ == 'pobj'])
+                    if len(pobj) > 0:
+                        criteria = pobj[0]  # dtype: spaCy token
+                        # match_chunk = []
+                        # for chunk in doc.noun_chunks:
+                        #     if criteria in chunk:
+                        #         match_chunk.append(chunk)
+                        # if len(match_chunk) > 0:
+                        #     return match_chunk[-1].text
+                if lemma:
+                    return criteria.lemma_
+                else:
+                    return criteria
+            else:
+                return None
+        else:
+            return None
+
+    def is_root_negative(self, doc):
+        """Returns bool if ROOT is negative or not
+        Only covers the first sentence of each provision as of 5/10.
+        """
+
+        if len(doc) > 0:
+            # first_sent = list(doc.sents)[0]
+            root = self.get_root(doc)
+            matches = ([token for token in root.children
+                       if token.dep_ == 'neg'])
+            return len(matches) > 0
