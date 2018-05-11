@@ -9,12 +9,11 @@ let send_query_json = function(query) {
         url: '/solve',
         contentType: "application/json; charset=utf-8",
         type: 'POST',
+        data: JSON.stringify(query),
         success: function (data) {
             console.log(data)
             display_solutions(data);
-        },
-        data: JSON.stringify(query)
-        // data: query
+        }
     });
     // console.log("send" + query)
 };
@@ -22,9 +21,9 @@ let send_query_json = function(query) {
 let display_solutions = function(solutions) {
     let s = $("p#solution")
     console.log(s)
-    // s.text(solutions.user_query)
-    s.text(solutions.query_vector)
-    // console.log("display works? ")
+    s.text(solutions.user_query)
+    let result_table = $("div#result-table")
+    result_table.html(solutions.table)
 };
 
 $(document).ready(function() {
