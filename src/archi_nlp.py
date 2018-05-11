@@ -90,7 +90,9 @@ class Archi(object):
     def add_keyword_cols(self, predict_df):
         """Add the subj and verb columns to the raw_nlp_data"""
         json_df = pd.DataFrame()
+        # copy the title and nlp_doc columns to json_df
         json_df['nlp_doc'] = predict_df['nlp_doc']
+        json_df['title'] = predict_df['title']
         json_df['ROOT'] = (predict_df['nlp_doc']
                            .apply(lambda x:
                            self.get_root(x, dep='ROOT', lemma=True)))
@@ -209,8 +211,11 @@ class Archi(object):
         qdoc = self.nlp(query)
         top_ten = self.score_df(qdoc).sort_values(ascending=False)[:10].index
         top_ten_df = self.raw_nlp_data.iloc[top_ten]
-        top_ten_df_json = self.add_keyword_cols(top_ten_df)
-        return top_ten_df_json
+        top_ten_df_dp = self.add_keyword_cols(top_ten_df)
+        top_ten_kg = []
+        for row in top_ten_df_dp.iterrows():
+            top_ten_kg.append(self.build_kg(row))
+        return top_ten_kg
 
     def score_df(self, qdoc):
         """Return a pandas series with the cos_sim scores of the query vs
@@ -232,3 +237,12 @@ class Archi(object):
                     / (np.sqrt(np.sum((a ** 2))) * np.sqrt(np.sum((b ** 2)))))
         else:
             return 0
+
+    def build_kg(self, row):
+        provision = {"@context": "http://archi.codes/",  # url
+                     "@type": "Provision",  # schema type
+                     "title": row[1]['title'],  # provision title
+                     "text": row[1]['nlp_doc'].text,  # provision text
+                     "about": row[1]['SUBJ'],  # subject
+                     "criteria": row[1]['CRIT']}
+        return provision
