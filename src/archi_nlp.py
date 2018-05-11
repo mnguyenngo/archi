@@ -92,32 +92,29 @@ class Archi(object):
         json_df = pd.DataFrame()
         json_df['nlp_doc'] = predict_df['nlp_doc']
         json_df['ROOT'] = (predict_df['nlp_doc']
-                              .apply(lambda x:
-                              self.get_root(x, dep='ROOT', lemma=True)))
+                           .apply(lambda x:
+                           self.get_root(x, dep='ROOT', lemma=True)))
         json_df['ROOT_TOKEN'] = (predict_df['nlp_doc']
-                                    .apply(lambda x:
-                                    self.get_root(x, dep='ROOT', lemma=False)))
+                                 .apply(lambda x:
+                                 self.get_root(x, dep='ROOT', lemma=False)))
         json_df['SUBJ'] = (predict_df['nlp_doc']
-                              .apply(lambda x:
-                              self.get_token_by_dep(x,
-                                                    dep='nsubj', lemma=True)))
+                           .apply(lambda x:
+                           self.get_token_by_dep(x, dep='nsubj', lemma=True)))
         json_df['SUBJ_TOKEN'] = (predict_df['nlp_doc']
-                                    .apply(lambda x:
-                                    self.get_token_by_dep(x,
-                                                          dep='nsubj',
-                                                          lemma=False)))
+                                 .apply(lambda x:
+                                 self.get_token_by_dep(x,
+                                                       dep='nsubj',
+                                                       lemma=False)))
         json_df['CRIT'] = (predict_df['nlp_doc']
-                              .apply(lambda x:
-                              self.get_criteria(x,
-                                                dep='criteria',
-                                                lemma=True)))
+                           .apply(lambda x:
+                           self.get_criteria(x, dep='criteria', lemma=True)))
         json_df['CRIT_TOKEN'] = (predict_df['nlp_doc']
-                                    .apply(lambda x:
-                                    self.get_criteria(x,
-                                                      dep='criteria',
-                                                      lemma=False)))
+                                 .apply(lambda x:
+                                 self.get_criteria(x,
+                                                   dep='criteria',
+                                                   lemma=False)))
         json_df['NEG'] = (predict_df['nlp_doc']
-                             .apply(self.is_root_negative))
+                          .apply(self.is_root_negative))
 
         return json_df
 
@@ -216,11 +213,20 @@ class Archi(object):
         return top_ten_df_json
 
     def score_df(self, qdoc):
+        """Return a pandas series with the cos_sim scores of the query vs
+        the raw nlp docs"""
         scores = self.raw_nlp_data['nlp_doc'].apply(
                  lambda x: self.cos_sim(qdoc.vector, x.vector))
         return scores
 
     def cos_sim(self, a, b):
+        """Calculates and returns the cosine similarity value
+
+        Warning:
+        For some reason the spaCy result and numpy dot product function does
+        not return the same result as the one shown below. With the code below,
+        the result falls between 0 and 1, which is expected.
+        """
         if len(a) == len(b):
             return (np.sum((a * b))
                     / (np.sqrt(np.sum((a ** 2))) * np.sqrt(np.sum((b ** 2)))))
