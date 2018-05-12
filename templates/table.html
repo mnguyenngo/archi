@@ -1,14 +1,17 @@
+<!DOCTYPE html>
 <table border="1">
   <thead>
-    <th>Title</th>
-    <th>Text</th>
+    <tr>
+      <th>Title</th>
+      <th>Text</th>
+    </tr>
   </thead>
   <tbody>
-    {% for title, text in data %}  <!--start for loop over variable data-->
-      <tr>                  <!-- on each row -->
-        <td>{{ title }}</td>    <!-- write variable x -->
-        <td>{{ text }}</td>    <!-- write variable y -->
-    </tr>                   <!-- end the row -->
-    {% endfor %}            <!-- end for loop -->
-</tbody>
+    {% for title, text in data %}   <!--start for loop over variable data-->
+      <tr>                          <!-- on each row -->
+        <td>{{ title }}</td>        <!-- write variable x -->
+        <td>{{ text }}</td>         <!-- write variable y -->
+      </tr>                         <!-- end the row -->
+    {% endfor %}                    <!-- end for loop -->
+  </tbody>
 </table>

@@ -1,9 +1,10 @@
+<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="utf-8">
 
     <title>AI on Building Regulations</title>
-    <meta name="description" content="NLP on Building Regulations">
+    <meta name="description" content="AI on Building Regulations">
 
     <!-- load the jquery.js before the js for the app -->
     <script type="text/javascript" src={{ url_for('static', filename='jquery.js') }}> </script>
@@ -14,15 +15,11 @@
 
   <body>
 
-    <h1>Ask Archi</h1>
-    <p>Archi will help you navigate the domain of building regulations</p>
-    <!-- <p>Please enter your research topic below</p> -->
+    <h1>Ask Archi [BETA]</h1>
+
+    <p>Archi has memorized the building code and can help you navigate the domain of building regulations</p>
 
     <div>
-      <!-- These have id's so that later we can pull out data using js. -->
-      <!-- <p>U+1F916;: Hello Human.</p> -->
-      <p>Archi: Hello Human</p>
-
       <textarea id="query" name="query" rows="4" cols="50" placeholder="Enter your research topic here" wrap="soft"></textarea>
     </div>
 
@@ -31,16 +28,12 @@
     </div>
 
     <div>
-      <!-- The span has an id so that later we can fill in the solution
-           using js. -->
-      <!-- <p>Your query:</p> -->
-      <p id="solution"></p>
+
+      <p id="uq-title"></p>
+      <p id="user-query"></p>
       <div id="result-table"></div>
       <!-- <p id="first-match-text"></p> -->
     </div>
-
-
-
 
   </body>
 </html>
