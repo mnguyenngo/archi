@@ -20,8 +20,7 @@ def solve():
     user_data = request.json
     print(user_data)
     results = archi.predict(user_data)
-    # print(results)
-    data = [(result['title'], result['text']) for result in results]
+    data = [(result['title'], result['text'], result['score']) for result in results]
     table = render_template('table.html', data=data)
     return jsonify({'user_query': user_data,
                     'results': results,
