@@ -30,12 +30,9 @@ class Archi(object):
         self.raw_data = None
         self.raw_nlp_data = None
         if nlp_model_name is None:
-            self.nlp = spacy.load('en')
+            self.nlp = spacy.load('en_core_web_lg')
         else:
             self.nlp = spacy.load(nlp_model_name)
-        self.trained_ids = []
-        self.raw_ner_data = None
-        self.ner_train_data = None
 
     def get_raw_data(self, path):
         """Get raw data from pickle files"""
@@ -71,18 +68,18 @@ class Archi(object):
         return code_text
 
     def pickle_raw_nlp(self, path):
-        """Save the dataframe with nlp_doc to a pickle"""
+        """Save the dataframe with nlp_text to a pickle"""
         self.raw_nlp_data.to_pickle(path)
 
     def fit_nlp(self):
-        """Copies the raw_data and calls add_nlp_doc to add an nlp_doc column
+        """Copies the raw_data and calls add_nlp_text to add an nlp_text column
         """
         self.raw_nlp_data = self.raw_data.copy()
-        self.raw_nlp_data['nlp_doc'] = (self.raw_nlp_data['code']
-                                        .apply(self.add_nlp_doc))
+        self.raw_nlp_data['nlp_text'] = (self.raw_nlp_data['code']
+                                        .apply(self.add_nlp_text))
 
-    def add_nlp_doc(self, code_text):
-        """Add column with nlp_doc object for code text
+    def add_nlp_text(self, code_text):
+        """Add column with nlp_text object for code text
         """
         doc = self.nlp(code_text)
         return doc
@@ -90,32 +87,32 @@ class Archi(object):
     def add_keyword_cols(self, predict_df):
         """Add the subj and verb columns to the raw_nlp_data"""
         json_df = pd.DataFrame()
-        # copy the title and nlp_doc columns to json_df
-        json_df['nlp_doc'] = predict_df['nlp_doc']
+        # copy the title and nlp_text columns to json_df
+        json_df['nlp_text'] = predict_df['nlp_text']
         json_df['title'] = predict_df['title']
-        json_df['ROOT'] = (predict_df['nlp_doc']
+        json_df['ROOT'] = (predict_df['nlp_text']
                            .apply(lambda x:
                            self.get_root(x, dep='ROOT', lemma=True)))
-        json_df['ROOT_TOKEN'] = (predict_df['nlp_doc']
+        json_df['ROOT_TOKEN'] = (predict_df['nlp_text']
                                  .apply(lambda x:
                                  self.get_root(x, dep='ROOT', lemma=False)))
-        json_df['SUBJ'] = (predict_df['nlp_doc']
+        json_df['SUBJ'] = (predict_df['nlp_text']
                            .apply(lambda x:
                            self.get_token_by_dep(x, dep='nsubj', lemma=True)))
-        json_df['SUBJ_TOKEN'] = (predict_df['nlp_doc']
+        json_df['SUBJ_TOKEN'] = (predict_df['nlp_text']
                                  .apply(lambda x:
                                  self.get_token_by_dep(x,
                                                        dep='nsubj',
                                                        lemma=False)))
-        json_df['CRIT'] = (predict_df['nlp_doc']
+        json_df['CRIT'] = (predict_df['nlp_text']
                            .apply(lambda x:
                            self.get_criteria(x, dep='criteria', lemma=True)))
-        json_df['CRIT_TOKEN'] = (predict_df['nlp_doc']
+        json_df['CRIT_TOKEN'] = (predict_df['nlp_text']
                                  .apply(lambda x:
                                  self.get_criteria(x,
                                                    dep='criteria',
                                                    lemma=False)))
-        json_df['NEG'] = (predict_df['nlp_doc']
+        json_df['NEG'] = (predict_df['nlp_text']
                           .apply(self.is_root_negative))
 
         return json_df
@@ -209,10 +206,14 @@ class Archi(object):
     def predict(self, query):
         """Returns top ten docs"""
         qdoc = self.nlp(query)
-        top_ten = self.score_df(qdoc).sort_values(ascending=False)[:10].index
-        top_ten_df = self.raw_nlp_data.iloc[top_ten]
-        top_ten_df_dp = self.add_keyword_cols(top_ten_df)
-        top_ten_kg = []
+        top_ten = self.score_df(qdoc).sort_values(ascending=False)[:10]
+        top_ten_idx = top_ten.index
+        top_ten_df = self.raw_nlp_data.iloc[top_ten_idx]
+        top_ten_df_dp = self.add_keyword_cols(top_ten_df)  # dependecy parsed
+        # top_ten_df_dp['scores'] = top_ten_df_dp.merge(top_ten, how='left',
+        #                                               left_index=True)
+        top_ten_df_dp['score'] = top_ten
+        top_ten_kg = []  # empty knowledge graph object
         for row in top_ten_df_dp.iterrows():
             top_ten_kg.append(self.build_kg(row))
         return top_ten_kg
@@ -220,11 +221,12 @@ class Archi(object):
     def score_df(self, qdoc):
         """Return a pandas series with the cos_sim scores of the query vs
         the raw nlp docs"""
-        scores = self.raw_nlp_data['nlp_doc'].apply(
-                 lambda x: self.cos_sim(qdoc.vector, x.vector))
+        scores = self.raw_nlp_data['nlp_text'].apply(
+                 lambda x: self.cos_sim(qdoc.vector, x))
+
         return scores
 
-    def cos_sim(self, a, b):
+    def cos_sim(self, query_vec, code_doc):
         """Calculates and returns the cosine similarity value
 
         Warning:
@@ -232,9 +234,14 @@ class Archi(object):
         not return the same result as the one shown below. With the code below,
         the result falls between 0 and 1, which is expected.
         """
-        if len(a) == len(b):
-            return (np.sum((a * b))
-                    / (np.sqrt(np.sum((a ** 2))) * np.sqrt(np.sum((b ** 2)))))
+        code_vec = code_doc.vector
+        if len(list(code_doc.sents)) > 1:
+            code_first_sent = list(code_doc.sents)[0]
+            code_vec = code_first_sent.vector
+        if len(query_vec) == len(code_vec):
+            return (np.sum((query_vec * code_vec))
+                    / (np.sqrt(np.sum((query_vec ** 2)))
+                       * np.sqrt(np.sum((code_vec ** 2)))))
         else:
             return 0
 
@@ -242,7 +249,9 @@ class Archi(object):
         provision = {"@context": "http://archi.codes/",  # url
                      "@type": "Provision",  # schema type
                      "title": row[1]['title'],  # provision title
-                     "text": row[1]['nlp_doc'].text,  # provision text
+                     "text": row[1]['nlp_text'].text,  # provision text
+                     # "nlp_doc": [dict],  # dict with nlp docs for each sent
                      "about": row[1]['SUBJ'],  # subject
-                     "criteria": row[1]['CRIT']}
+                     "criteria": row[1]['CRIT'],
+                     "score": row[1]['score']}
         return provision
