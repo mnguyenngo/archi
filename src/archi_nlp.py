@@ -6,9 +6,7 @@ import datetime as dt
 from src import archi_graph
 
 # from spacy import displacy
-
 # from nltk import Tree
-
 # import mongo_helpers as mh
 
 
@@ -29,7 +27,7 @@ class Archi(object):
 
         self._created_date = dt.datetime.today()
         self.raw_data = None
-        self.raw_nlp_data = None
+        self.nlp_data = None
         if nlp_model_name is None:
             self.nlp = spacy.load('en_core_web_lg')
         else:
@@ -72,9 +70,9 @@ class Archi(object):
             df = df.apply(self.parse_title, axis=1)
             self.raw_data = df
         if on == 'raw_nlp':
-            df = self.raw_nlp_data.copy()
+            df = self.nlp_data.copy()
             df = df.apply(self.parse_title, axis=1)
-            self.raw_nlp_data = df
+            self.nlp_data = df
 
     def parse_title(self, row):
         """Parse through section title and extract num and text"""
@@ -105,23 +103,24 @@ class Archi(object):
                     chapter_num = section_num[0]
                 chapter_title = None
 
-            elif title_list[0] == 'Appendix':
+            elif title_list[0] == 'Appendix':  # if the row is for a chapter
                 section_num = None
                 section_title = None
                 chapter_title = " ".join(title_list[2:])
                 chapter_num = title_list[1]
 
-            else:
+            else:  # for unexpected conditions, just fill with Nones
                 section_num = None
                 section_title = None
                 chapter_title = None
                 chapter_num = None
-        else:
+        else:  # title is neither chapter or section title
             section_num = tuple(title_list[0].split('.'))
             section_title = " ".join(title_list[1:])
             chapter_num = None
             chapter_title = None
 
+            # deal with IBC section number conventions
             if source_doc_title == 'International Building Code':
                 chapter_num = section_num[0]
                 if chapter_num.isdigit():
@@ -135,7 +134,6 @@ class Archi(object):
                 if chapter_num[0].isalpha():
                     chapter_num = chapter_num[0]
                 chapter_title = None
-        # chapter_title = self.get_chapter_title(chapter_num, source_doc_title)
 
         # add title info to dataframe
         row['section_num'] = section_num
@@ -143,12 +141,6 @@ class Archi(object):
         row['chapter_num'] = chapter_num
         row['chapter_title'] = chapter_title
         return row
-
-        # doc_data = {'section': {'section_num': section_num,
-        #                         'section_title': section_title},
-        #             'chapter': {'chapter_num': chapter_num,
-        #                         'chapter_title': chapter_title}}
-        # return doc_data
 
     def fill_chapter_title(self):
         """Iterates through"""
@@ -165,14 +157,14 @@ class Archi(object):
         self.raw_data = df
 
 
-    def get_raw_nlp_data(self, path):
+    def get_nlp_data(self, path):
         """Get raw nlp data from pickle files"""
         df = pd.read_pickle(path)
         df['code'] = df['code'].apply(self.clean_newline)
-        if self.raw_nlp_data is None:
-            self.raw_nlp_data = df
+        if self.nlp_data is None:
+            self.nlp_data = df
         else:
-            self.raw_nlp_data = pd.concat([self.raw_nlp_data, df],
+            self.nlp_data = pd.concat([self.nlp_data, df],
                                           axis=0,
                                           ignore_index=True)
 
@@ -186,23 +178,30 @@ class Archi(object):
 
     def pickle_raw_nlp(self, path):
         """Save the dataframe with nlp_text to a pickle"""
-        self.raw_nlp_data.to_pickle(path)
+        self.nlp_data.to_pickle(path)
 
     def fit_nlp(self):
         """Copies the raw_data and calls add_nlp_text to add an nlp_text column
         """
-        self.raw_nlp_data = self.raw_data.copy()
-        self.raw_nlp_data['nlp_text'] = (self.raw_nlp_data['code']
-                                         .apply(self.add_nlp_text))
+        self.nlp_data = self.raw_data.copy()
+        self.nlp_data['nlp_code_text'] = (self.nlp_data['code']
+                                          .apply(self.add_nlp_text))
+        self.nlp_data['nlp_section_title'] = (self.nlp_data['section_title']
+                                              .apply(self.add_nlp_text))
+        self.nlp_data['nlp_chapter_title'] = (self.nlp_data['chapter_title']
+                                              .apply(self.add_nlp_text))
 
     def add_nlp_text(self, code_text):
         """Add column with nlp_text object for code text
         """
-        doc = self.nlp(code_text)
-        return doc
+        if code_text is None:
+            return None
+        else:
+            doc = self.nlp(code_text)
+            return doc
 
     def add_keyword_cols(self, predict_df):
-        """Add the subj and verb columns to the raw_nlp_data"""
+        """Add the subj and verb columns to the nlp_data"""
         json_df = pd.DataFrame()
         # copy the title and nlp_text columns to json_df
         json_df['nlp_text'] = predict_df['nlp_text']
@@ -325,7 +324,7 @@ class Archi(object):
         qdoc = self.nlp(query)
         top_ten = self.score_df(qdoc).sort_values(ascending=False)[:10]
         top_ten_idx = top_ten.index
-        top_ten_df = self.raw_nlp_data.iloc[top_ten_idx]
+        top_ten_df = self.nlp_data.iloc[top_ten_idx]
         top_ten_df_dp = self.add_keyword_cols(top_ten_df)  # dependecy parsed
         # top_ten_df_dp['scores'] = top_ten_df_dp.merge(top_ten, how='left',
         #                                               left_index=True)
@@ -338,7 +337,7 @@ class Archi(object):
     def score_df(self, qdoc):
         """Return a pandas series with the cos_sim scores of the query vs
         the raw nlp docs"""
-        scores = self.raw_nlp_data['nlp_text'].apply(
+        scores = self.nlp_data['nlp_text'].apply(
                  lambda x: self.cos_sim(qdoc.vector, x))
 
         return scores
