@@ -3,6 +3,7 @@ import numpy as np
 import spacy
 
 import datetime as dt
+from src import archi_graph
 
 # from spacy import displacy
 
@@ -34,19 +35,135 @@ class Archi(object):
         else:
             self.nlp = spacy.load(nlp_model_name)
 
-    def get_raw_data(self, path):
+    def get_raw_data(self, path, default_process=True):
         """Get raw data from pickle files"""
         df = pd.read_pickle(path)
         df = df.drop(['date_read'], axis=1)
-        df = df.reset_index()
-        df = df.drop('index', axis=1)
+        df = df.reset_index(drop=True)
         df['code'] = df['code'].apply(self.clean_newline)
+        # get source_doc and add as column
+        df['source_doc'] = path
+        df['source_doc'] = df['source_doc'].apply(self.get_source_doc)
         if self.raw_data is None:
             self.raw_data = df
         else:
             self.raw_data = pd.concat([self.raw_data, df],
                                       axis=0,
                                       ignore_index=True)
+        if default_process is True:
+            self.get_doc_data()
+            self.fill_chapter_title()
+
+    def get_source_doc(self, path):
+        if 'ibc' in path.split('/')[-1]:
+            source_doc = {'title': 'International Building Code',
+                          'edition': 2015,
+                          'withAmendedments': 'Washington'}
+
+        elif 'asce' in path.split('/')[-1]:
+            source_doc = {'title': 'ASCE 7-10'}
+        else:
+            source_doc = None
+        return source_doc
+
+    def get_doc_data(self, on='raw'):
+        if on == 'raw':
+            df = self.raw_data.copy()
+            df = df.apply(self.parse_title, axis=1)
+            self.raw_data = df
+        if on == 'raw_nlp':
+            df = self.raw_nlp_data.copy()
+            df = df.apply(self.parse_title, axis=1)
+            self.raw_nlp_data = df
+
+    def parse_title(self, row):
+        """Parse through section title and extract num and text"""
+        title = row['title']
+        source_doc_title = row['source_doc']['title']
+
+        # parse_title
+        title_list = title.split()
+        if title_list[0].isalpha():
+            if title_list[0] == 'Chapter':  # if the row is for a chapter
+                section_num = None
+                section_title = None
+                chapter_title = " ".join(title_list[2:])
+                chapter_num = title_list[1]
+            # if the row is for a section title
+            elif title_list[0] == 'Section':
+                section_num = tuple(title_list[1].split('.'))
+                section_title = " ".join(title_list[2:])
+                if source_doc_title == 'International Building Code':
+                    chapter_num = section_num[0]
+                    if chapter_num.isdigit():
+                        chapter_num = int(chapter_num)
+                        chapter_num = chapter_num // 100
+                        chapter_num = str(chapter_num)
+                    elif chapter_num[0].isalpha():
+                        chapter_num = chapter_num[0]
+                else:
+                    chapter_num = section_num[0]
+                chapter_title = None
+
+            elif title_list[0] == 'Appendix':
+                section_num = None
+                section_title = None
+                chapter_title = " ".join(title_list[2:])
+                chapter_num = title_list[1]
+
+            else:
+                section_num = None
+                section_title = None
+                chapter_title = None
+                chapter_num = None
+        else:
+            section_num = tuple(title_list[0].split('.'))
+            section_title = " ".join(title_list[1:])
+            chapter_num = None
+            chapter_title = None
+
+            if source_doc_title == 'International Building Code':
+                chapter_num = section_num[0]
+                if chapter_num.isdigit():
+                    chapter_num = int(chapter_num)
+                    chapter_num = chapter_num // 100
+                    chapter_num = str(chapter_num)
+                else:
+                    chapter_num = chapter_num[0]
+            else:
+                chapter_num = section_num[0]
+                if chapter_num[0].isalpha():
+                    chapter_num = chapter_num[0]
+                chapter_title = None
+        # chapter_title = self.get_chapter_title(chapter_num, source_doc_title)
+
+        # add title info to dataframe
+        row['section_num'] = section_num
+        row['section_title'] = section_title
+        row['chapter_num'] = chapter_num
+        row['chapter_title'] = chapter_title
+        return row
+
+        # doc_data = {'section': {'section_num': section_num,
+        #                         'section_title': section_title},
+        #             'chapter': {'chapter_num': chapter_num,
+        #                         'chapter_title': chapter_title}}
+        # return doc_data
+
+    def fill_chapter_title(self):
+        """Iterates through"""
+        df = self.raw_data.copy()
+        chapters = df[df['section_title'].isnull()]
+        for row in chapters.iterrows():
+            chapter_num = row[1]['chapter_num']
+            chapter_title = row[1]['chapter_title']
+            source_title = row[1]['source_doc']['title']
+            mask = df['chapter_num'] == chapter_num
+            for df_row in df[mask].iterrows():
+                if df_row[1]['source_doc']['title'] == source_title:
+                    df.loc[df_row[0], 'chapter_title'] = chapter_title
+        self.raw_data = df
+
 
     def get_raw_nlp_data(self, path):
         """Get raw nlp data from pickle files"""
@@ -76,7 +193,7 @@ class Archi(object):
         """
         self.raw_nlp_data = self.raw_data.copy()
         self.raw_nlp_data['nlp_text'] = (self.raw_nlp_data['code']
-                                        .apply(self.add_nlp_text))
+                                         .apply(self.add_nlp_text))
 
     def add_nlp_text(self, code_text):
         """Add column with nlp_text object for code text
@@ -104,10 +221,10 @@ class Archi(object):
                                  self.get_token_by_dep(x,
                                                        dep='nsubj',
                                                        lemma=False)))
-        json_df['CRIT'] = (predict_df['nlp_text']
+        json_df['CRITICAL'] = (predict_df['nlp_text']
                            .apply(lambda x:
                            self.get_criteria(x, dep='criteria', lemma=True)))
-        json_df['CRIT_TOKEN'] = (predict_df['nlp_text']
+        json_df['CRITICAL_TOKEN'] = (predict_df['nlp_text']
                                  .apply(lambda x:
                                  self.get_criteria(x,
                                                    dep='criteria',
@@ -252,6 +369,6 @@ class Archi(object):
                      "text": row[1]['nlp_text'].text,  # provision text
                      # "nlp_doc": [dict],  # dict with nlp docs for each sent
                      "about": row[1]['SUBJ'],  # subject
-                     "criteria": row[1]['CRIT'],
+                     "criteria": row[1]['CRITICAL'],
                      "score": row[1]['score']}
         return provision
