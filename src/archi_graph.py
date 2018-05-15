@@ -4,36 +4,97 @@
 # import datetime as dt
 
 
-class ArchiNode(object):
-    def __init__(self, node_type='provision', doc_info=None, nlp_obj=None):
+class Node(object):
+    """Node for an AEC knowledge graph
+    Args:
+        node_type (str): 'provision' or 'component'
+        document_info (dict): information about source document (provisions
+                              only)
+        nlp_obj (spacy doc): provision nlp obj (provisions only)
+    Returns:
+        Node class object
+        (use .node to see the json object or python dict)
+    """
+
+    def __init__(self, node_type='provision', document_info=None,
+                 nlp_obj=None):
         self.node_type = node_type
-        self.doc_info = doc_info
+        self.document_info = document_info
         self.nlp_obj = nlp_obj
+        self.node = self.build_node()
 
     def build_node(self):
+        """Creates node object; Called by __init__
+        """
         if self.node_type == 'provision':
             provision_node = ({
                 '@context': 'http://archi.codes/',
-                '@type': 'provision',
-                'docInfo': self.doc_info})
-
-            provision_node = self.add_provision_data(provision_node)
+                '@type': 'provision'})
+            if self.document_info is not None:
+                provision_node['documentInfo'] = self.document_info
+            if self.nlp_obj is not None:
+                provision_node = self.add_provision_nlp_data(provision_node)
+            # returns base node if additional info is None
             return provision_node
 
-    def add_provision_data(self, provision_node):
-        provision_node["text"] = self.doc_info,  # provision text; nlp doc
-        about_base, criteria, about = self.parse_nlp_doc(self.doc_info)
-        provision_node["about"] = about  # primary subject
-        provision_node["criteria"] = criteria  # primary criteria
-        provision_node["aboutBase"] = about_base  # primary subject lemma
+        # Placeholder for component node_type
+
+        else:
+            return None
+
+    def add_provision_nlp_data(self, provision_node):
+        """Returns parsed provision nlp data
+        Args:
+            provision_node (dict): base node object
+        Returns:
+            provision_node (dict): node object with nlp items for the provision
+        """
+        # provision_node = self.node
+        if self.nlp_obj is not None:
+            provision_node["text"] = self.nlp_obj  # provision text; nlp doc
+
+            # parse the nlp obj and extract the root and its objects and
+            # subject
+            about_base, criteria, about, neg_root = (
+                self.parse_nlp_doc(self.nlp_obj))
+            provision_node["about"] = about  # primary subject
+            provision_node["criteria"] = criteria  # primary criteria
+            provision_node["aboutBase"] = about_base  # primary subject lemma
+            provision_node["negRoot"] = neg_root  # bool for negative root
+
         return provision_node
+        # self.node = provision_node
 
     def parse_nlp_doc(self, doc):
         root = self.get_root(doc, dep='ROOT', lemma=False)
-        if root.text is 'be':
-            print('the root is be')
-            about_base, criteria, about = None, None, None
-            return about_base, criteria, about
+        if root is not None:
+            if root.lemma_ is 'be':
+                """Parse nlp_doc for docs with root 'be'
+                Return:
+                    about_base (lemma): primary subj for categorization,
+                    ex. wall
+                    criteria (pobj): object of 'be'
+                    about (token as read): primary subject, ex. walls
+                """
+                print("the root is 'be'")
+                about_base = self.get_token_by_dep(doc, lemma=True)
+                criteria = self.get_criteria(doc, lemma=False)
+                about = self.get_token_by_dep(doc, lemma=False)
+                neg_root = self.is_root_negative(doc)
+
+            # Placeholder for comply root
+            # elif root.lemma_ is 'comply':
+            #     print("the root is 'comply'")
+            #     about_base, criteria, about = None, None, None
+
+            else:
+                about_base = self.get_token_by_dep(doc, lemma=True)
+                criteria = self.get_criteria(doc, lemma=False)
+                about = self.get_token_by_dep(doc, lemma=False)
+                neg_root = self.is_root_negative(doc)
+            return about_base, criteria, about, neg_root
+        else:
+            return None, None, None, None
 
     def get_root(self, doc, dep='ROOT', lemma=False):
         """Returns the root of the first sentence of the nlp doc"""
@@ -120,3 +181,97 @@ class ArchiNode(object):
             matches = ([token for token in root.children
                        if token.dep_ == 'neg'])
             return len(matches) > 0
+
+    def create_edges(self):
+        """Create edge object that links to the current base node to a branch
+           node.
+        """
+        doc = self.node['text']
+        base_node_info = self.node['documentInfo']
+        sents = list(doc.sents)
+        edges = []
+        for sent in sents:
+            lems = sent.lemma_.split()
+            if 'section' in lems:
+                sec_list = self.extract_provision_name(lems, keyword='section')
+                for sec_num in sec_list:
+                    branch_node = self.package_branch_node(sec_num)
+                    e = Edge(base_node_info, branch_node)
+                    edges.append(e)
+            if 'chapter' in lems:
+                chap_list = self.extract_provision_name(lems,
+                                                        keyword='chapter')
+                for chap_num in chap_list:
+                    branch_node = self.package_branch_node(
+                                  sec_num, branch_provision_type='chapter')
+                    e = Edge(base_node_info, branch_node)
+                    edges.append(e)
+        return edges
+        # insert e into mongodb; return e for now
+
+
+    def extract_provision_name(self, lemma_list, keyword='section'):
+        """Extracts the chapters and sections referenced in a list of lemmas
+        Returns:
+            prov_names (list): ex. [section_num 16.2, chapter 3]
+        """
+        prov_names = []
+        for idx, word in enumerate(lemma_list):
+            if word == keyword:
+                if idx != len(lemma_list) - 1:  # ignore the last word
+                    next_word = lemma_list[idx+1]
+                    ref_num = next_word.split('.')
+                    if ref_num[0].isdigit():
+                        prov_names.append(tuple(ref_num))
+        prov_names = set(prov_names)  # convert to set to remove duplicates
+        prov_names = list(prov_names)  # convert back to list
+        return prov_names
+
+    def package_branch_node(self, sec_num, branch_provision_type='section'):
+        # check if provision node exists or not
+        # if exists, update the provision node with the rel edge
+        # if does not exist, create new provision node
+        source_doc = self.node['documentInfo']['source_doc']
+        branch_node = {'source_doc': source_doc}
+        chapter = {}
+
+        if branch_provision_type == 'section':
+            section = {}
+            section['section_num'] = sec_num
+            # get chapter to include with section number
+            if len(sec_num[0]) > 2:  # for ibc sections and their number format
+                print('foo')
+                actual_chapter = str(int(sec_num[0]) // 100)
+                chapter['chapter_num'] = actual_chapter
+            else:
+                chapter['chapter_num'] = sec_num[0]
+            branch_node['chapter'] = chapter
+            branch_node['section'] = section
+        if branch_provision_type == 'chapter':
+            chapter['chapter'] = sec_num[0]
+            branch_node['chapter'] = chapter
+        return branch_node
+
+
+class Edge(object):
+    """Node for an AEC knowledge graph
+    Args:
+        node_type (str): 'provision' or 'component'
+        document_info (dict): information about source document (provisions
+                              only)
+        nlp_obj (spacy doc): provision nlp obj (provisions only)
+    Returns:
+    """
+
+    def __init__(self, base_node, branch_node):
+        self.base_node = base_node
+        self.branch_node = branch_node
+        self.edge = self.build_edge()
+
+    def build_edge(self):
+        e = {"@context": "http://archi.codes/",  # url
+             "@type": "edge"}  # schema type
+
+        e['base_node'] = self.base_node
+        e['branch_node'] = self.branch_node
+        return e

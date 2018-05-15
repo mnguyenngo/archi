@@ -1,13 +1,10 @@
 import pandas as pd
 import numpy as np
 import spacy
-
+from pymongo import MongoClient
 import datetime as dt
-from src import archi_graph
 
-# from spacy import displacy
-# from nltk import Tree
-# import mongo_helpers as mh
+from src.archi_graph import Node
 
 
 class Archi(object):
@@ -234,80 +231,6 @@ class Archi(object):
 
         return json_df
 
-    def get_root(self, doc, dep='ROOT', lemma=False):
-        """Returns the root of the first sentence of the nlp doc"""
-        if len(doc) > 0:
-            first_sent = list(doc.sents)[0]
-            if dep == 'ROOT':
-                if lemma:
-                    return first_sent.root.lemma_  # primary verb
-                else:
-                    return first_sent.root
-            else:
-                return None
-        else:
-            return None
-
-    def get_token_by_dep(self, doc, dep='nsubj', lemma=False):
-        """Returns the lemmatized token based on the dependency passed
-        Only covers the first sentence of each provision as of 5/10.
-        """
-
-        if len(doc) > 0:
-            # first_sent = list(doc.sents)[0]
-            root = self.get_root(doc)
-            if dep == 'nsubj':
-                deps = ['nsubj', 'nsubjpass']  # nominal subjects
-            matches = ([token for token in root.children
-                       if token.dep_ in deps])
-            if len(matches) > 0:
-                token = matches[0]
-                if lemma:
-                    return token.lemma_
-                else:
-                    return token
-            else:
-                return None
-        else:
-            return None
-
-    def get_criteria(self, doc, dep='criteria', lemma=False):
-        """Returns the lemmatized token based on the dependency passed
-        Currently, primarily for provisions with ROOT 'be'
-
-        TODO:
-        - [ ] Some provisions have multiple criteria. This method only
-        retrieves the first occuring criteria.
-        """
-        if len(doc) > 0:
-            if dep == 'criteria':
-                # adj modifier (matches with ROOT 'be')
-                deps = ['amod', 'prep']
-            root = self.get_root(doc)  # dtype: spaCy token
-
-            matches = [token for token in root.children if token.dep_ in deps]
-            if len(matches) > 0:
-                criteria = matches[0]  # dtype: spaCy token
-                if criteria.dep_ == 'prep':
-                    pobj = ([token for token in criteria.children
-                             if token.dep_ == 'pobj'])
-                    if len(pobj) > 0:
-                        criteria = pobj[0]  # dtype: spaCy token
-                        # match_chunk = []
-                        # for chunk in doc.noun_chunks:
-                        #     if criteria in chunk:
-                        #         match_chunk.append(chunk)
-                        # if len(match_chunk) > 0:
-                        #     return match_chunk[-1].text
-                if lemma:
-                    return criteria.lemma_
-                else:
-                    return criteria
-            else:
-                return None
-        else:
-            return None
-
     def is_root_negative(self, doc):
         """Returns bool if ROOT is negative or not
         Only covers the first sentence of each provision as of 5/10.
@@ -362,13 +285,50 @@ class Archi(object):
         else:
             return 0
 
-    def build_kg(self, row):
-        provision = {"@context": "http://archi.codes/",  # url
-                     "@type": "Provision",  # schema type
-                     "title": row[1]['title'],  # provision title
-                     "text": row[1]['nlp_text'].text,  # provision text
-                     # "nlp_doc": [dict],  # dict with nlp docs for each sent
-                     "about": row[1]['SUBJ'],  # subject
-                     "criteria": row[1]['CRITICAL'],
-                     "score": row[1]['score']}
-        return provision
+    def build_node(self, row):
+        document_info = self.package_document_info(row)
+        nlp_obj = row['nlp_code_text']
+        node = Node(node_type='provision', document_info=document_info,
+                    nlp_obj=nlp_obj)
+        return node
+
+    def package_document_info(self, row):
+        """Packages the data in a dataframe row into a python dictionary"""
+        chapter = {'chapter_num': row['chapter_num'],
+                   'chapter_title': row['chapter_title']}
+        section = {'section_num': row['section_num'],
+                   'section_title': row['section_title']}
+        source_doc = row['source_doc']
+        document_info = {'chapter': chapter,
+                         'section': section,
+                         'source_doc': source_doc}
+        return document_info
+
+    def find_edges(self, node):
+        edges = node.create_edges()
+        return edges
+
+    def build_db(self, coll_name=None, host='localhost', port=27017):
+        # if coll_name is None, create new db
+        client = MongoClient(host=host, port=port)
+        db = client['Archi']
+        if coll_name is None:
+            todays_date = self._created_date.strftime('%y%m%d')
+            coll_name = f"Archi_{todays_date}"
+            coll = db[coll_name]
+        else:
+            coll = db[coll_name]
+        self.nlp_data.apply(lambda x: self.build_db_pipeline(x, coll),
+                            axis=1)
+
+    def build_db_pipeline(self, row, coll):
+        node = self.build_node(row)  # dtype: node object
+        edges = node.create_edges()  # dtype: list of edge objects
+        self.load_db(node, coll)
+        for edge in edges:
+            self.load_db(edge, coll)
+
+    def load_db(self, item, coll):
+        # if coll_name is None, create new db
+
+        coll.insert_one(item)
