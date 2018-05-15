@@ -156,7 +156,6 @@ class Archi(object):
                     df.loc[df_row[0], 'chapter_title'] = chapter_title
         self.raw_data = df
 
-
     def get_nlp_data(self, path):
         """Get raw nlp data from pickle files"""
         df = pd.read_pickle(path)
@@ -165,8 +164,8 @@ class Archi(object):
             self.nlp_data = df
         else:
             self.nlp_data = pd.concat([self.nlp_data, df],
-                                          axis=0,
-                                          ignore_index=True)
+                                      axis=0,
+                                      ignore_index=True)
 
     def clean_newline(self, code_text):
         """Replace newline characters with a space
@@ -221,13 +220,15 @@ class Archi(object):
                                                        dep='nsubj',
                                                        lemma=False)))
         json_df['CRITICAL'] = (predict_df['nlp_text']
-                           .apply(lambda x:
-                           self.get_criteria(x, dep='criteria', lemma=True)))
+                               .apply(lambda x:
+                               self.get_criteria(x,
+                                                 dep='criteria',
+                                                 lemma=True)))
         json_df['CRITICAL_TOKEN'] = (predict_df['nlp_text']
-                                 .apply(lambda x:
-                                 self.get_criteria(x,
-                                                   dep='criteria',
-                                                   lemma=False)))
+                                     .apply(lambda x:
+                                     self.get_criteria(x,
+                                                       dep='criteria',
+                                                       lemma=False)))
         json_df['NEG'] = (predict_df['nlp_text']
                           .apply(self.is_root_negative))
 
