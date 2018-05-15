@@ -287,9 +287,12 @@ class Archi(object):
 
     def build_node(self, row):
         document_info = self.package_document_info(row)
-        nlp_obj = row['nlp_code_text']
+        text_nlp = row['nlp_code_text']
+        section_nlp = row['nlp_section_title']
+        chapter_nlp = row['nlp_chapter_title']
         node = Node(node_type='provision', document_info=document_info,
-                    nlp_obj=nlp_obj)
+                    text_nlp=text_nlp, section_nlp=section_nlp,
+                    chapter_nlp=chapter_nlp)
         return node
 
     def package_document_info(self, row):
@@ -308,27 +311,27 @@ class Archi(object):
         edges = node.create_edges()
         return edges
 
-    def build_db(self, coll_name=None, host='localhost', port=27017):
+    def build_db(self, coll_name=None):
         # if coll_name is None, create new db
-        client = MongoClient(host=host, port=port)
-        db = client['Archi']
         if coll_name is None:
             todays_date = self._created_date.strftime('%y%m%d')
-            coll_name = f"Archi_{todays_date}"
-            coll = db[coll_name]
-        else:
-            coll = db[coll_name]
-        self.nlp_data.apply(lambda x: self.build_db_pipeline(x, coll),
+            coll_name = f"archi_{todays_date}"
+            print(coll_name)
+        self.nlp_data.apply(lambda x: self.build_db_pipeline(x, coll_name),
                             axis=1)
 
-    def build_db_pipeline(self, row, coll):
+    def build_db_pipeline(self, row, coll_name):
+        client = MongoClient()
+        db = client['archi']
+        coll = db[coll_name]
+
         node = self.build_node(row)  # dtype: node object
         edges = node.create_edges()  # dtype: list of edge objects
-        self.load_db(node, coll)
-        for edge in edges:
-            self.load_db(edge, coll)
-
-    def load_db(self, item, coll):
-        # if coll_name is None, create new db
-
-        coll.insert_one(item)
+        if type(node.node) == dict:
+            print('foonode')
+            coll.insert_one(node.node)
+        if edges is not None:
+            for edge in edges:
+                if type(edge.edge) == dict:
+                    print('fooedge')
+                    coll.insert_one(edge.edge)

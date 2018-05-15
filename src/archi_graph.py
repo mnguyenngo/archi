@@ -10,17 +10,19 @@ class Node(object):
         node_type (str): 'provision' or 'component'
         document_info (dict): information about source document (provisions
                               only)
-        nlp_obj (spacy doc): provision nlp obj (provisions only)
+        text_nlp (spacy doc): provision nlp obj (provisions only)
     Returns:
         Node class object
         (use .node to see the json object or python dict)
     """
 
     def __init__(self, node_type='provision', document_info=None,
-                 nlp_obj=None):
+                 text_nlp=None, section_nlp=None, chapter_nlp=None):
         self.node_type = node_type
         self.document_info = document_info
-        self.nlp_obj = nlp_obj
+        self.text_nlp = text_nlp
+        self.section_nlp = section_nlp
+        self.chapter_nlp = chapter_nlp
         self.node = self.build_node()
 
     def build_node(self):
@@ -32,7 +34,7 @@ class Node(object):
                 '@type': 'provision'})
             if self.document_info is not None:
                 provision_node['documentInfo'] = self.document_info
-            if self.nlp_obj is not None:
+            if self.text_nlp is not None:
                 provision_node = self.add_provision_nlp_data(provision_node)
             # returns base node if additional info is None
             return provision_node
@@ -50,18 +52,30 @@ class Node(object):
             provision_node (dict): node object with nlp items for the provision
         """
         # provision_node = self.node
-        if self.nlp_obj is not None:
-            provision_node["text"] = self.nlp_obj  # provision text; nlp doc
-
+        if self.text_nlp is not None:
+            if len(self.text_nlp) > 0:
+                provision_node["text"] = self.text_nlp.text  # provision text
+                provision_node["text_nlp_vector"] = (
+                    self.text_nlp.vector.tolist())
+            else:
+                provision_node["text"] = None
+                provision_node["text_nlp_vector"] = None
             # parse the nlp obj and extract the root and its objects and
             # subject
             about_base, criteria, about, neg_root = (
-                self.parse_nlp_doc(self.nlp_obj))
+                self.parse_nlp_doc(self.text_nlp))
             provision_node["about"] = about  # primary subject
             provision_node["criteria"] = criteria  # primary criteria
             provision_node["aboutBase"] = about_base  # primary subject lemma
             provision_node["negRoot"] = neg_root  # bool for negative root
 
+            if self.section_nlp is not None:
+                provision_node["section_nlp_vector"] = (
+                    self.section_nlp.vector.tolist())
+
+            if self.section_nlp is not None:
+                provision_node["chapter_nlp_vector"] = (
+                    self.chapter_nlp.vector.tolist())
         return provision_node
         # self.node = provision_node
 
@@ -127,7 +141,7 @@ class Node(object):
                 if lemma:
                     return token.lemma_
                 else:
-                    return token
+                    return token.text
             else:
                 return None
         else:
@@ -164,7 +178,7 @@ class Node(object):
                 if lemma:
                     return criteria.lemma_
                 else:
-                    return criteria
+                    return criteria.text
             else:
                 return None
         else:
@@ -186,29 +200,33 @@ class Node(object):
         """Create edge object that links to the current base node to a branch
            node.
         """
-        doc = self.node['text']
-        base_node_info = self.node['documentInfo']
-        sents = list(doc.sents)
-        edges = []
-        for sent in sents:
-            lems = sent.lemma_.split()
-            if 'section' in lems:
-                sec_list = self.extract_provision_name(lems, keyword='section')
-                for sec_num in sec_list:
-                    branch_node = self.package_branch_node(sec_num)
-                    e = Edge(base_node_info, branch_node)
-                    edges.append(e)
-            if 'chapter' in lems:
-                chap_list = self.extract_provision_name(lems,
-                                                        keyword='chapter')
-                for chap_num in chap_list:
-                    branch_node = self.package_branch_node(
-                                  sec_num, branch_provision_type='chapter')
-                    e = Edge(base_node_info, branch_node)
-                    edges.append(e)
-        return edges
+        doc = self.text_nlp
+        if doc is not None:
+            base_node_info = self.node['documentInfo']
+            sents = list(doc.sents)
+            edges = []
+            for sent in sents:
+                lems = sent.lemma_.split()
+                if 'section' in lems:
+                    sec_list = self.extract_provision_name(lems,
+                                                           keyword='section')
+                    for sec_num in sec_list:
+                        branch_node = self.package_branch_node(sec_num)
+                        e = Edge(base_node_info, branch_node)
+                        edges.append(e)
+                if 'chapter' in lems:
+                    chap_list = self.extract_provision_name(lems,
+                                                            keyword='chapter')
+                    for chap_num in chap_list:
+                        branch_node = self.package_branch_node(
+                                      chap_num,
+                                      branch_provision_type='chapter')
+                        e = Edge(base_node_info, branch_node)
+                        edges.append(e)
+            return edges
+        else:
+            return None
         # insert e into mongodb; return e for now
-
 
     def extract_provision_name(self, lemma_list, keyword='section'):
         """Extracts the chapters and sections referenced in a list of lemmas
@@ -240,7 +258,6 @@ class Node(object):
             section['section_num'] = sec_num
             # get chapter to include with section number
             if len(sec_num[0]) > 2:  # for ibc sections and their number format
-                print('foo')
                 actual_chapter = str(int(sec_num[0]) // 100)
                 chapter['chapter_num'] = actual_chapter
             else:
@@ -259,7 +276,7 @@ class Edge(object):
         node_type (str): 'provision' or 'component'
         document_info (dict): information about source document (provisions
                               only)
-        nlp_obj (spacy doc): provision nlp obj (provisions only)
+        text_nlp (spacy doc): provision nlp obj (provisions only)
     Returns:
     """
 
