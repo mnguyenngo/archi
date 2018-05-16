@@ -1,11 +1,25 @@
 from flask import Flask, render_template, request, jsonify
-from src.archi_nlp import Archi
+from archi_nlp import Archi
+import datetime as dt
+
 app = Flask(__name__)
 
-
+# initiate archi
 archi = Archi('en_core_web_lg')
-archi.get_raw_nlp_data('data/nlp_df/raw_nlp_05-11.pkl')
 
+# load nlp data if available
+archi.get_nlp_data('../data/nlp_df/nlp_0514.pkl')
+
+# otherwise, load raw data
+# archi.get_raw_data('../data/raw_df/ibc.pkl')
+# archi.get_raw_data('../data/raw_df/asce7.pkl')
+
+# and fit with archi nlp model
+# archi.fit_nlp()
+
+# and pickle the nlp data
+# today = dt.datetime.today().strftime('%y%m%d')
+# archi.pickle_raw_nlp(f'../data/nlp_df/nlp_{today}.pkl')
 
 @app.route('/', methods=['GET'])
 def index(results=None):
@@ -20,10 +34,13 @@ def solve():
     user_data = request.json
     print(user_data)
     results = archi.predict(user_data)
-    data = [(result['title'], result['text'], result['score']) for result in results]
+    print(type(results))
+    data = [(result[1]['title'],
+             result[1]['code'],
+             result[1]['score']) for result in results.iterrows()]
     table = render_template('table.html', data=data)
     return jsonify({'user_query': user_data,
-                    'results': results,
+                    # 'results': results,
                     'table': table})
     # index(results=results)
 

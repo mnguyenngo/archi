@@ -6,3 +6,4 @@ data/nlp_df/
 data/corpus/
 data/ner/
 src/models/nlp/
+.DS_Store
