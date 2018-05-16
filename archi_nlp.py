@@ -313,7 +313,7 @@ class Archi(object):
         # if coll_name is None, create new db
         if coll_name is None:
             todays_date = self._created_date.strftime('%y%m%d')
-            coll_name = f"archi_{todays_date}"
+            coll_name = "archi_{}".format(todays_date)
             print(coll_name)
         self.nlp_data.apply(lambda x: self.build_db_pipeline(x, coll_name),
                             axis=1)
