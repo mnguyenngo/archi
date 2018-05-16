@@ -1,16 +1,10 @@
 import pandas as pd
-
+import numpy as np
 import spacy
-
+from pymongo import MongoClient
 import datetime as dt
 
-import random
-from pathlib import Path
-# from spacy import displacy
-
-# from nltk import Tree
-
-# import mongo_helpers as mh
+from src.archi_graph import Node
 
 
 class Archi(object):
@@ -19,7 +13,7 @@ class Archi(object):
         * ASCE 7-10
     """
 
-    def __init__(self, nlp_model_name):
+    def __init__(self, nlp_model_name=None):
         """
         ARGS
         ----
@@ -30,36 +24,145 @@ class Archi(object):
 
         self._created_date = dt.datetime.today()
         self.raw_data = None
-        self.raw_nlp_data = None
-        self.nlp = spacy.load(nlp_model_name)
-        self.trained_ids = []
-        self.raw_ner_data = None
-        self.ner_train_data = None
+        self.nlp_data = None
+        if nlp_model_name is None:
+            self.nlp = spacy.load('en_core_web_lg')
+        else:
+            self.nlp = spacy.load(nlp_model_name)
 
-    def get_raw_data(self, path):
+    def get_raw_data(self, path, default_process=True):
         """Get raw data from pickle files"""
         df = pd.read_pickle(path)
         df = df.drop(['date_read'], axis=1)
-        df = df.reset_index()
-        df = df.drop('index', axis=1)
+        df = df.reset_index(drop=True)
         df['code'] = df['code'].apply(self.clean_newline)
+        # get source_doc and add as column
+        df['source_doc'] = path
+        df['source_doc'] = df['source_doc'].apply(self.get_source_doc)
         if self.raw_data is None:
             self.raw_data = df
         else:
             self.raw_data = pd.concat([self.raw_data, df],
                                       axis=0,
                                       ignore_index=True)
+        if default_process is True:
+            self.get_doc_data()
+            self.fill_chapter_title()
 
-    def get_raw_nlp_data(self, path):
+    def get_source_doc(self, path):
+        if 'ibc' in path.split('/')[-1]:
+            source_doc = {'title': 'International Building Code',
+                          'edition': 2015,
+                          'withAmendedments': 'Washington'}
+
+        elif 'asce' in path.split('/')[-1]:
+            source_doc = {'title': 'ASCE 7-10'}
+        else:
+            source_doc = None
+        return source_doc
+
+    def get_doc_data(self, on='raw'):
+        if on == 'raw':
+            df = self.raw_data.copy()
+            df = df.apply(self.parse_title, axis=1)
+            self.raw_data = df
+        if on == 'raw_nlp':
+            df = self.nlp_data.copy()
+            df = df.apply(self.parse_title, axis=1)
+            self.nlp_data = df
+
+    def parse_title(self, row):
+        """Parse through section title and extract num and text"""
+        title = row['title']
+        source_doc_title = row['source_doc']['title']
+
+        # parse_title
+        title_list = title.split()
+        if title_list[0].isalpha():
+            if title_list[0] == 'Chapter':  # if the row is for a chapter
+                section_num = None
+                section_title = None
+                chapter_title = " ".join(title_list[2:])
+                chapter_num = title_list[1]
+            # if the row is for a section title
+            elif title_list[0] == 'Section':
+                section_num = tuple(title_list[1].split('.'))
+                section_title = " ".join(title_list[2:])
+                if source_doc_title == 'International Building Code':
+                    chapter_num = section_num[0]
+                    if chapter_num.isdigit():
+                        chapter_num = int(chapter_num)
+                        chapter_num = chapter_num // 100
+                        chapter_num = str(chapter_num)
+                    elif chapter_num[0].isalpha():
+                        chapter_num = chapter_num[0]
+                else:
+                    chapter_num = section_num[0]
+                chapter_title = None
+
+            elif title_list[0] == 'Appendix':  # if the row is for a chapter
+                section_num = None
+                section_title = None
+                chapter_title = " ".join(title_list[2:])
+                chapter_num = title_list[1]
+
+            else:  # for unexpected conditions, just fill with Nones
+                section_num = None
+                section_title = None
+                chapter_title = None
+                chapter_num = None
+        else:  # title is neither chapter or section title
+            section_num = tuple(title_list[0].split('.'))
+            section_title = " ".join(title_list[1:])
+            chapter_num = None
+            chapter_title = None
+
+            # deal with IBC section number conventions
+            if source_doc_title == 'International Building Code':
+                chapter_num = section_num[0]
+                if chapter_num.isdigit():
+                    chapter_num = int(chapter_num)
+                    chapter_num = chapter_num // 100
+                    chapter_num = str(chapter_num)
+                else:
+                    chapter_num = chapter_num[0]
+            else:
+                chapter_num = section_num[0]
+                if chapter_num[0].isalpha():
+                    chapter_num = chapter_num[0]
+                chapter_title = None
+
+        # add title info to dataframe
+        row['section_num'] = section_num
+        row['section_title'] = section_title
+        row['chapter_num'] = chapter_num
+        row['chapter_title'] = chapter_title
+        return row
+
+    def fill_chapter_title(self):
+        """Iterates through"""
+        df = self.raw_data.copy()
+        chapters = df[df['section_title'].isnull()]
+        for row in chapters.iterrows():
+            chapter_num = row[1]['chapter_num']
+            chapter_title = row[1]['chapter_title']
+            source_title = row[1]['source_doc']['title']
+            mask = df['chapter_num'] == chapter_num
+            for df_row in df[mask].iterrows():
+                if df_row[1]['source_doc']['title'] == source_title:
+                    df.loc[df_row[0], 'chapter_title'] = chapter_title
+        self.raw_data = df
+
+    def get_nlp_data(self, path):
         """Get raw nlp data from pickle files"""
         df = pd.read_pickle(path)
         df['code'] = df['code'].apply(self.clean_newline)
-        if self.raw_nlp_data is None:
-            self.raw_nlp_data = df
+        if self.nlp_data is None:
+            self.nlp_data = df
         else:
-            self.raw_nlp_data = pd.concat([self.raw_nlp_data, df],
-                                          axis=0,
-                                          ignore_index=True)
+            self.nlp_data = pd.concat([self.nlp_data, df],
+                                      axis=0,
+                                      ignore_index=True)
 
     def clean_newline(self, code_text):
         """Replace newline characters with a space
@@ -70,243 +173,163 @@ class Archi(object):
         return code_text
 
     def pickle_raw_nlp(self, path):
-        """Save the dataframe with nlp_doc to a pickle"""
-        self.raw_nlp_data.to_pickle(path)
+        """Save the dataframe with nlp_text to a pickle"""
+        self.nlp_data.to_pickle(path)
 
     def fit_nlp(self):
-        """Copies the raw_data and calls add_nlp_doc to add an nlp_doc column
+        """Copies the raw_data and calls add_nlp_text to add an nlp_text column
         """
-        self.raw_nlp_data = self.raw_data.copy()
-        self.raw_nlp_data['nlp_doc'] = (self.raw_nlp_data['code']
-                                        .apply(self.add_nlp_doc))
+        self.nlp_data = self.raw_data.copy()
+        self.nlp_data['nlp_code_text'] = (self.nlp_data['code']
+                                          .apply(self.add_nlp_text))
+        self.nlp_data['nlp_section_title'] = (self.nlp_data['section_title']
+                                              .apply(self.add_nlp_text))
+        self.nlp_data['nlp_chapter_title'] = (self.nlp_data['chapter_title']
+                                              .apply(self.add_nlp_text))
 
-    def add_nlp_doc(self, code_text):
-        """Add column with nlp_doc object for code text
+    def add_nlp_text(self, code_text):
+        """Add column with nlp_text object for code text
         """
-        doc = self.nlp(code_text)
-        return doc
-
-    def random_sample(self, n=200):
-        """Returns a random row from the nlp_raw_data"""
-        df = self.raw_nlp_data.sample(n=n,
-                                      replace=False)
-        df = df.reset_index()
-        df = df.drop('index', axis=1)
-        return df
-
-    def build_ner_train(self):
-        """Initializes ner train data"""
-        if self.raw_ner_data is None:
-            self.raw_ner_data = self.random_sample()
-
-    def review_ner_train(self):
-        """Serves one NER object for user to review"""
-        if len(self.raw_ner_data) == 0:
-            print("No raw NER data left. Train the model with archi.train()")
+        if code_text is None:
             return None
-
         else:
-            last_idx = len(self.raw_ner_data) - 1
-            ner_data = self.raw_ner_data.loc[last_idx]
-            self.raw_ner_data = self.raw_ner_data.drop(last_idx, axis=0)
-            ent_data, ent_w_word = self.format_ner_data(ner_data['nlp_doc'])
-            ner_data = NER_data(ent_data, ent_w_word, ner_data['nlp_doc'])
-            return ner_data
+            doc = self.nlp(code_text)
+            return doc
 
-    def format_ner_data(self, doc):
-        """Serve reviewer a row from the random_sample of the data.
-        Reviewer will make modifications to the entity results and send
-        the object to the train dataset.
+    # def add_keyword_cols(self, predict_df):
+    #     """Add the subj and verb columns to the nlp_data"""
+    #     json_df = pd.DataFrame()
+    #     # copy the title and nlp_text columns to json_df
+    #     json_df['nlp_text'] = predict_df['nlp_text']
+    #     json_df['title'] = predict_df['title']
+    #     json_df['ROOT'] = (predict_df['nlp_text']
+    #                        .apply(lambda x:
+    #                        self.get_root(x, dep='ROOT', lemma=True)))
+    #     json_df['ROOT_TOKEN'] = (predict_df['nlp_text']
+    #                              .apply(lambda x:
+    #                              self.get_root(x, dep='ROOT', lemma=False)))
+    #     json_df['SUBJ'] = (predict_df['nlp_text']
+    #                        .apply(lambda x:
+    #                        self.get_token_by_dep(x, dep='nsubj', lemma=True)))
+    #     json_df['SUBJ_TOKEN'] = (predict_df['nlp_text']
+    #                              .apply(lambda x:
+    #                              self.get_token_by_dep(x,
+    #                                                    dep='nsubj',
+    #                                                    lemma=False)))
+    #     json_df['CRITICAL'] = (predict_df['nlp_text']
+    #                            .apply(lambda x:
+    #                            self.get_criteria(x,
+    #                                              dep='criteria',
+    #                                              lemma=True)))
+    #     json_df['CRITICAL_TOKEN'] = (predict_df['nlp_text']
+    #                                  .apply(lambda x:
+    #                                  self.get_criteria(x,
+    #                                                    dep='criteria',
+    #                                                    lemma=False)))
+    #     json_df['NEG'] = (predict_df['nlp_text']
+    #                       .apply(self.is_root_negative))
+    #
+    #     return json_df
 
-        Called by prep_ner_train()
+    def predict(self, query):
+        """Returns top ten docs"""
+        qdoc = self.nlp(query)
+        top_ten = self.score_df(qdoc).sort_values(ascending=False)[:10]
+        top_ten_idx = top_ten.index
+        top_ten_df = self.nlp_data.iloc[top_ten_idx]
+        # top_ten_df_dp = self.add_keyword_cols(top_ten_df)  # dependecy parsed
+        # top_ten_df_dp['scores'] = top_ten_df_dp.merge(top_ten, how='left',
+        #                                               left_index=True)
+        top_ten_df['score'] = top_ten
+        # top_ten_kg = []  # empty knowledge graph object
+        # for row in top_ten_df.iterrows():
+        #     top_ten_kg.append(self.build_kg(row))
+        return top_ten_df
+
+    def score_df(self, qdoc):
+        """Return a pandas series with the cos_sim scores of the query vs
+        the raw nlp docs"""
+        code_text_scores = self.nlp_data['nlp_code_text'].apply(
+                           lambda x: self.cos_sim(qdoc.vector, x))
+        sec_title_scores = self.nlp_data['nlp_section_title'].apply(
+                           lambda x: self.cos_sim(qdoc.vector, x))
+        chap_title_scores = self.nlp_data['nlp_chapter_title'].apply(
+                            lambda x: self.cos_sim(qdoc.vector, x))
+        scores = pd.concat([code_text_scores, sec_title_scores, chap_title_scores], axis=1)
+        scores['total'] = scores.mean(axis=1)
+        # print(scores)
+        return scores['total']
+
+    def cos_sim(self, query_vec, code_doc):
+        """Calculates and returns the cosine similarity value
+
+        Warning:
+        For some reason the spaCy result and numpy dot product function does
+        not return the same result as the one shown below. With the code below,
+        the result falls between 0 and 1, which is expected.
         """
-        # doc = row['nlp_doc'].values[0]
-        text = doc.text
-        ent_dict = {'entities': [(ent.start,
-                                  ent.end,
-                                  ent.label_) for ent in doc.ents]}
-        ent_formatted = {'entities': [(ent.text,
-                                       ent.start,
-                                       ent.end,
-                                       ent.label_) for ent in doc.ents]}
-        train_obj = (text, ent_dict)
-        view_obj = (text, ent_formatted)
-        return train_obj, view_obj
-
-    def get_ner_train_data(self, path):
-        """Get raw nlp data from pickle files"""
-        df = pd.read_pickle(path)
-        # df['code'] = df['code'].apply(self.clean_newline)
-        if self.ner_train_data is None:
-            self.ner_train_data = df
+        if code_doc is not None:
+            if len(code_doc) > 0:
+                code_vec = code_doc.vector
+                if len(list(code_doc.sents)) > 1:
+                    code_first_sent = list(code_doc.sents)[0]
+                    code_vec = code_first_sent.vector
+                if len(query_vec) == len(code_vec):
+                    return (np.sum((query_vec * code_vec))
+                            / (np.sqrt(np.sum((query_vec ** 2)))
+                               * np.sqrt(np.sum((code_vec ** 2)))))
+            else:
+                return 0
         else:
-            self.ner_train_data = pd.concat([self.ner_train_data, df],
-                                            axis=0,
-                                            ignore_index=True)
+            return 0
 
-    def submit_ner_train_data(self, NER_data_obj):
-        """Collects NER data for model training"""
-        ent = NER_data_obj.ent_data
-        ent_dict = {'string': ent[0], 'ent': ent[1]}
-        ent_df = pd.DataFrame(ent_dict)
-        ent_df = ent_df.reset_index(drop=True)
-        if self.ner_train_data is None:
-            self.ner_train_data = ent_df
-        else:
-            self.ner_train_data = pd.concat([self.ner_train_data, ent_df],
-                                            axis=0,
-                                            ignore_index=True)
+    def build_node(self, row):
+        document_info = self.package_document_info(row)
+        text_nlp = row['nlp_code_text']
+        section_nlp = row['nlp_section_title']
+        chapter_nlp = row['nlp_chapter_title']
+        node = Node(node_type='provision', document_info=document_info,
+                    text_nlp=text_nlp, section_nlp=section_nlp,
+                    chapter_nlp=chapter_nlp)
+        return node
 
-        path = 'data/ner/{}_ner.pkl'.format(self._created_date
-                                            .strftime("%y-%m-%d"))
-        self.ner_train_data.to_pickle(path)
+    def package_document_info(self, row):
+        """Packages the data in a dataframe row into a python dictionary"""
+        chapter = {'chapter_num': row['chapter_num'],
+                   'chapter_title': row['chapter_title']}
+        section = {'section_num': row['section_num'],
+                   'section_title': row['section_title']}
+        source_doc = row['source_doc']
+        document_info = {'chapter': chapter,
+                         'section': section,
+                         'source_doc': source_doc}
+        return document_info
 
-    # train code adapted from spacy documentation on training NER
-    def ner_train(self, new_model_name=None, min_train_size=10,
-                  output_dir=None, n_iter=1, new_label=None):
-        """Set up the pipeline and entity recognizer, and train the new entity.
-        """
-        if len(self.ner_train_data) >= min_train_size:
-            # Add entity recognizer to model if it's not in the pipeline
-            # nlp.create_pipe works for built-ins that are registered with
-            # spaCy
-            if 'ner' not in self.nlp.pipe_names:
-                ner = self.nlp.create_pipe('ner')
-                self.nlp.add_pipe(ner)
-            # otherwise, get it, so we can add labels to it
-            else:
-                ner = self.nlp.get_pipe('ner')
+    def find_edges(self, node):
+        edges = node.create_edges()
+        return edges
 
-            # add new entity label to entity recognizer
-            if new_label is not None:
-                for label in new_label:
-                    ner.add_label(label)
+    def build_db(self, coll_name=None):
+        # if coll_name is None, create new db
+        if coll_name is None:
+            todays_date = self._created_date.strftime('%y%m%d')
+            coll_name = f"archi_{todays_date}"
+            print(coll_name)
+        self.nlp_data.apply(lambda x: self.build_db_pipeline(x, coll_name),
+                            axis=1)
 
-            optimizer = self.nlp.entity.create_optimizer()
+    def build_db_pipeline(self, row, coll_name):
+        client = MongoClient()
+        db = client['archi']
+        coll = db[coll_name]
 
-            # get names of other pipes to disable them during training
-            other_pipes = ([pipe for pipe in self.nlp.pipe_names
-                            if pipe != 'ner'])
-
-            TRAIN_DATA = ([(text, {'entities': ent})
-                          for idx, (ent, text)
-                          in self.ner_train_data.iterrows()])
-
-            with self.nlp.disable_pipes(*other_pipes):  # only train NER
-                for itn in range(n_iter):
-                    random.shuffle(TRAIN_DATA)
-                    losses = {}
-                    for text, annotations in TRAIN_DATA:
-                        self.nlp.update([text], [annotations], sgd=optimizer,
-                                        drop=0.35, losses=losses)
-                    print(losses)
-
-            # save model to output directory
-            if output_dir is not None:
-                output_dir = Path(output_dir)
-                if not output_dir.exists():
-                    output_dir.mkdir()
-                if new_model_name is None:
-                    new_model_name = '{}_nlp'.format(self._created_date
-                                                     .strftime("%y-%m-%d"))
-                self.nlp.meta['name'] = new_model_name  # rename model
-                self.nlp.to_disk(output_dir)
-                print("Saved model to", output_dir)
-
-                # test the saved model
-                print("Loading from", output_dir)
-                self.nlp = spacy.load(output_dir)
-                print("Archi object has been updated to new model")
-
-        else:
-            print("Not enough training data")
-
-
-class NER_data(object):
-    """Data for training a spacy nlp model in labeling named entities
-
-    Attributes:
-        train_obj (tuple(str, dict)): in the format for training according to
-        spacy docs
-        view_obj (tuple(str, dict)): for reviewer, includes text that is being
-        labeled
-
-    Returns:
-        NER_data object
-    """
-
-    def __init__(self, train_obj, view_obj, doc):
-        self.ent_data = train_obj
-        self.view_data = view_obj
-        self.doc = doc
-        # self.text = ent_data[0]
-        # self.ent_dict = ent_data[1]
-
-    def add_ent(self, text, label):
-        """Locates the text and applies the label to the text"""
-        if text in self.ent_data[0]:
-            # if text is multiple words, extra check to see if index is correct
-            # start = 0  # init start
-            if len(text.split()) > 1:
-                check_1 = self.ent_data[0].split().index(text.split()[0])
-                check_2 = self.ent_data[0].split().index(text.split()[1])
-                if check_2 != check_1 + 1:
-                    print("Warning: check if index is correct.")
-                start = self.ent_data[0].split().index(text.split()[0])
-
-            else:
-                start = self.ent_data[0].split().index(text)
-
-            end = start + len(text.split())
-
-            self._add_ent(text, start, end, label)
-
-            print(self.view_data)
-        else:
-            raise ValueError
-
-    def _add_ent(self, text, start, end, label):
-        """Helper function for add_ent()"""
-        for attr in [self.ent_data, self.view_data]:
-            if attr == self.ent_data:
-                # add to ent_data
-                attr[1]['entities'].append((start, end, label))
-            else:
-                # add to view_data
-                attr[1]['entities'].append((text, start, end, label))
-            attr[1]['entities'] = list(set(attr[1]['entities']))
-            if attr == self.ent_data:
-                attr[1]['entities'].sort()
-            else:
-                attr[1]['entities'].sort(key=lambda x: x[1])
-
-    def modify_label(self, text, label=None):
-        """Locates the text and modifies the entity data"""
-        for tup in self.view_data[1]['entities']:
-            if text in tup:
-                self.del_ent(text)
-                self.add_ent(text, label)
-        # print(self.view_data)
-
-    def del_ent(self, text):
-        """Locates the text in a doc and deletes entity label"""
-        for tup in self.view_data[1]['entities']:
-            if text in tup:
-                start = tup[1]
-                end = tup[2]
-                label = tup[3]
-
-                self._del_ent(text, start, end, label)
-                print(self.view_data)
-            # else:
-                # raise ValueError
-
-    def _del_ent(self, text, start, end, label):
-        """Helper function for del_ent()"""
-        for attr in [self.ent_data, self.view_data]:
-            if attr == self.ent_data:
-                # delete from ent_data
-                attr[1]['entities'].remove((start, end, label))
-            else:
-                # delete from view_data
-                attr[1]['entities'].remove((text, start, end, label))
+        node = self.build_node(row)  # dtype: node object
+        edges = node.create_edges()  # dtype: list of edge objects
+        if type(node.node) == dict:
+            print('foonode')
+            coll.insert_one(node.node)
+        if edges is not None:
+            for edge in edges:
+                if type(edge.edge) == dict:
+                    print('fooedge')
+                    coll.insert_one(edge.edge)

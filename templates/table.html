@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<table border="1">
+  <thead>
+    <tr>
+      <th>Title</th>
+      <th>Text</th>
+      <th>Match Score</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for title, text, score in data %}   <!--start for loop over variable data-->
+      <tr>                          <!-- on each row -->
+        <td>{{ title }}</td>        <!-- write variable title -->
+        <td>{{ text }}</td>         <!-- write variable text -->
+        <td>{{ score }}</td>         <!-- write variable score -->
+      </tr>                         <!-- end the row -->
+    {% endfor %}                    <!-- end for loop -->
+  </tbody>
+</table>

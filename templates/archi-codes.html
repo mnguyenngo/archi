@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+
+    <title>AI on Building Regulations</title>
+    <meta name="description" content="AI on Building Regulations">
+
+    <!-- load the jquery.js before the js for the app -->
+    <script type="text/javascript" src={{ url_for('static', filename='jquery.js') }}> </script>
+    <meta name="author" content="Nguyen Ngo">
+    <script type="text/javascript" src={{ url_for('static', filename='archi-codes.js') }}>  </script>
+
+  </head>
+
+  <body>
+
+    <h1>Ask Archi [BETA]</h1>
+
+    <p>Archi has memorized the building code and can help you navigate the domain of building regulations</p>
+
+    <div>
+      <textarea id="query" name="query" rows="4" cols="50" placeholder="Enter your research topic here" wrap="soft"></textarea>
+    </div>
+
+    <div>
+      <button type="button" id="solve">RUN</button>
+    </div>
+
+    <div>
+
+      <p id="uq-title"></p>
+      <p id="user-query"></p>
+      <div id="result-table"></div>
+      <!-- <p id="first-match-text"></p> -->
+    </div>
+
+  </body>
+</html>
