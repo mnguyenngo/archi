@@ -196,52 +196,40 @@ class Archi(object):
             doc = self.nlp(code_text)
             return doc
 
-    def add_keyword_cols(self, predict_df):
-        """Add the subj and verb columns to the nlp_data"""
-        json_df = pd.DataFrame()
-        # copy the title and nlp_text columns to json_df
-        json_df['nlp_text'] = predict_df['nlp_text']
-        json_df['title'] = predict_df['title']
-        json_df['ROOT'] = (predict_df['nlp_text']
-                           .apply(lambda x:
-                           self.get_root(x, dep='ROOT', lemma=True)))
-        json_df['ROOT_TOKEN'] = (predict_df['nlp_text']
-                                 .apply(lambda x:
-                                 self.get_root(x, dep='ROOT', lemma=False)))
-        json_df['SUBJ'] = (predict_df['nlp_text']
-                           .apply(lambda x:
-                           self.get_token_by_dep(x, dep='nsubj', lemma=True)))
-        json_df['SUBJ_TOKEN'] = (predict_df['nlp_text']
-                                 .apply(lambda x:
-                                 self.get_token_by_dep(x,
-                                                       dep='nsubj',
-                                                       lemma=False)))
-        json_df['CRITICAL'] = (predict_df['nlp_text']
-                               .apply(lambda x:
-                               self.get_criteria(x,
-                                                 dep='criteria',
-                                                 lemma=True)))
-        json_df['CRITICAL_TOKEN'] = (predict_df['nlp_text']
-                                     .apply(lambda x:
-                                     self.get_criteria(x,
-                                                       dep='criteria',
-                                                       lemma=False)))
-        json_df['NEG'] = (predict_df['nlp_text']
-                          .apply(self.is_root_negative))
-
-        return json_df
-
-    def is_root_negative(self, doc):
-        """Returns bool if ROOT is negative or not
-        Only covers the first sentence of each provision as of 5/10.
-        """
-
-        if len(doc) > 0:
-            # first_sent = list(doc.sents)[0]
-            root = self.get_root(doc)
-            matches = ([token for token in root.children
-                       if token.dep_ == 'neg'])
-            return len(matches) > 0
+    # def add_keyword_cols(self, predict_df):
+    #     """Add the subj and verb columns to the nlp_data"""
+    #     json_df = pd.DataFrame()
+    #     # copy the title and nlp_text columns to json_df
+    #     json_df['nlp_text'] = predict_df['nlp_text']
+    #     json_df['title'] = predict_df['title']
+    #     json_df['ROOT'] = (predict_df['nlp_text']
+    #                        .apply(lambda x:
+    #                        self.get_root(x, dep='ROOT', lemma=True)))
+    #     json_df['ROOT_TOKEN'] = (predict_df['nlp_text']
+    #                              .apply(lambda x:
+    #                              self.get_root(x, dep='ROOT', lemma=False)))
+    #     json_df['SUBJ'] = (predict_df['nlp_text']
+    #                        .apply(lambda x:
+    #                        self.get_token_by_dep(x, dep='nsubj', lemma=True)))
+    #     json_df['SUBJ_TOKEN'] = (predict_df['nlp_text']
+    #                              .apply(lambda x:
+    #                              self.get_token_by_dep(x,
+    #                                                    dep='nsubj',
+    #                                                    lemma=False)))
+    #     json_df['CRITICAL'] = (predict_df['nlp_text']
+    #                            .apply(lambda x:
+    #                            self.get_criteria(x,
+    #                                              dep='criteria',
+    #                                              lemma=True)))
+    #     json_df['CRITICAL_TOKEN'] = (predict_df['nlp_text']
+    #                                  .apply(lambda x:
+    #                                  self.get_criteria(x,
+    #                                                    dep='criteria',
+    #                                                    lemma=False)))
+    #     json_df['NEG'] = (predict_df['nlp_text']
+    #                       .apply(self.is_root_negative))
+    #
+    #     return json_df
 
     def predict(self, query):
         """Returns top ten docs"""
@@ -249,22 +237,28 @@ class Archi(object):
         top_ten = self.score_df(qdoc).sort_values(ascending=False)[:10]
         top_ten_idx = top_ten.index
         top_ten_df = self.nlp_data.iloc[top_ten_idx]
-        top_ten_df_dp = self.add_keyword_cols(top_ten_df)  # dependecy parsed
+        # top_ten_df_dp = self.add_keyword_cols(top_ten_df)  # dependecy parsed
         # top_ten_df_dp['scores'] = top_ten_df_dp.merge(top_ten, how='left',
         #                                               left_index=True)
-        top_ten_df_dp['score'] = top_ten
-        top_ten_kg = []  # empty knowledge graph object
-        for row in top_ten_df_dp.iterrows():
-            top_ten_kg.append(self.build_kg(row))
-        return top_ten_kg
+        top_ten_df['score'] = top_ten
+        # top_ten_kg = []  # empty knowledge graph object
+        # for row in top_ten_df.iterrows():
+        #     top_ten_kg.append(self.build_kg(row))
+        return top_ten_df
 
     def score_df(self, qdoc):
         """Return a pandas series with the cos_sim scores of the query vs
         the raw nlp docs"""
-        scores = self.nlp_data['nlp_text'].apply(
-                 lambda x: self.cos_sim(qdoc.vector, x))
-
-        return scores
+        code_text_scores = self.nlp_data['nlp_code_text'].apply(
+                           lambda x: self.cos_sim(qdoc.vector, x))
+        sec_title_scores = self.nlp_data['nlp_section_title'].apply(
+                           lambda x: self.cos_sim(qdoc.vector, x))
+        chap_title_scores = self.nlp_data['nlp_chapter_title'].apply(
+                            lambda x: self.cos_sim(qdoc.vector, x))
+        scores = pd.concat([code_text_scores, sec_title_scores, chap_title_scores], axis=1)
+        scores['total'] = scores.mean(axis=1)
+        # print(scores)
+        return scores['total']
 
     def cos_sim(self, query_vec, code_doc):
         """Calculates and returns the cosine similarity value
@@ -274,14 +268,18 @@ class Archi(object):
         not return the same result as the one shown below. With the code below,
         the result falls between 0 and 1, which is expected.
         """
-        code_vec = code_doc.vector
-        if len(list(code_doc.sents)) > 1:
-            code_first_sent = list(code_doc.sents)[0]
-            code_vec = code_first_sent.vector
-        if len(query_vec) == len(code_vec):
-            return (np.sum((query_vec * code_vec))
-                    / (np.sqrt(np.sum((query_vec ** 2)))
-                       * np.sqrt(np.sum((code_vec ** 2)))))
+        if code_doc is not None:
+            if len(code_doc) > 0:
+                code_vec = code_doc.vector
+                if len(list(code_doc.sents)) > 1:
+                    code_first_sent = list(code_doc.sents)[0]
+                    code_vec = code_first_sent.vector
+                if len(query_vec) == len(code_vec):
+                    return (np.sum((query_vec * code_vec))
+                            / (np.sqrt(np.sum((query_vec ** 2)))
+                               * np.sqrt(np.sum((code_vec ** 2)))))
+            else:
+                return 0
         else:
             return 0
 
