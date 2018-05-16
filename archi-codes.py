@@ -37,8 +37,8 @@ def solve():
     print(type(results))
     data = [(result[1]['title'],
              result[1]['code'],
-             result[1]['score']) for result in results.iterrows()]
-    table = render_template('table.html', data=data)
+             round(result[1]['score'], 2)) for result in results.iterrows()]
+    table = render_template('cards.html', data=data)
     return jsonify({'user_query': user_data,
                     # 'results': results,
                     'table': table})
