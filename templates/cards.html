@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<div>
+  {% for title, text, score in data %}   <!--start for loop over variable data-->
+  <div class="card">
+    <div class="card-header">
+      <span style="align: right"><small class="text-muted">{{ score }}</small></span>
+    </div>
+    <!-- <img class="card-img-top" src=".../100px180/" alt="Card image cap"> -->
+    <div class="card-body">
+      <h5 class="card-title">{{ title }}</h5>
+      <p class="card-text">{{ text }}</p>
+      <!-- <a href="#" class="btn btn-primary">Go somewhere</a> -->
+    </div>
+  </div>
+  {% endfor %}  <!-- end for loop -->
+</div>

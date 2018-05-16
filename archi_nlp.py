@@ -4,7 +4,7 @@ import spacy
 from pymongo import MongoClient
 import datetime as dt
 
-from src.archi_graph import Node
+from archi_graph import Node
 
 
 class Archi(object):
@@ -256,7 +256,7 @@ class Archi(object):
         chap_title_scores = self.nlp_data['nlp_chapter_title'].apply(
                             lambda x: self.cos_sim(qdoc.vector, x))
         scores = pd.concat([code_text_scores, sec_title_scores, chap_title_scores], axis=1)
-        scores['total'] = scores.mean(axis=1)
+        scores['total'] = scores.max(axis=1)
         # print(scores)
         return scores['total']
 
@@ -313,7 +313,7 @@ class Archi(object):
         # if coll_name is None, create new db
         if coll_name is None:
             todays_date = self._created_date.strftime('%y%m%d')
-            coll_name = f"archi_{todays_date}"
+            coll_name = "archi_{}".format(todays_date)
             print(coll_name)
         self.nlp_data.apply(lambda x: self.build_db_pipeline(x, coll_name),
                             axis=1)
