@@ -4,7 +4,7 @@ import spacy
 from pymongo import MongoClient
 import datetime as dt
 
-from src.archi_graph import Node
+from archi_graph import Node
 
 
 class Archi(object):

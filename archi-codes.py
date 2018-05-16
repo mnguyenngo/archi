@@ -8,18 +8,18 @@ app = Flask(__name__)
 archi = Archi('en_core_web_lg')
 
 # load nlp data if available
-archi.get_nlp_data('../data/nlp_df/nlp_0514.pkl')
+archi.get_nlp_data('data/nlp_df/nlp_0514.pkl')
 
 # otherwise, load raw data
-# archi.get_raw_data('../data/raw_df/ibc.pkl')
-# archi.get_raw_data('../data/raw_df/asce7.pkl')
+# archi.get_raw_data('data/raw_df/ibc.pkl')
+# archi.get_raw_data('data/raw_df/asce7.pkl')
 
 # and fit with archi nlp model
 # archi.fit_nlp()
 
 # and pickle the nlp data
 # today = dt.datetime.today().strftime('%y%m%d')
-# archi.pickle_raw_nlp(f'../data/nlp_df/nlp_{today}.pkl')
+# archi.pickle_raw_nlp(f'data/nlp_df/nlp_{today}.pkl')
 
 @app.route('/', methods=['GET'])
 def index(results=None):
