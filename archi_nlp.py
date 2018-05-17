@@ -244,7 +244,7 @@ class Archi(object):
         # top_ten_kg = []  # empty knowledge graph object
         # for row in top_ten_df.iterrows():
         #     top_ten_kg.append(self.build_kg(row))
-        return top_ten_df
+        return top_ten_df, qdoc  # return qdoc for rendering on web app
 
     def score_df(self, qdoc):
         """Return a pandas series with the cos_sim scores of the query vs
