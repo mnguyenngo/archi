@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+
+    <title>AI on Building Regulations</title>
+    <meta name="description" content="AI on Building Regulations">
+    <meta name="author" content="Nguyen Ngo">
+    <!-- load the jquery.js before the js for the app -->
+    <script type="text/javascript" src={{ url_for('static', filename='jquery.js') }}> </script>
+    <script type="text/javascript" src={{ url_for('static', filename='js/bootstrap.min.js') }}> </script>
+    <script type="text/javascript" src={{ url_for('static', filename='archi-codes.js') }}>  </script>
+
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/bootstrap.min.css') }}">
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/archi.css') }}">
+
+  </head>
+
+  <body>
+
+    <h2 id="title-text">archi.codes<sup><span class="badge badge-secondary" style="font-size:12px">beta</span></sup></h2>
+
+    <div>
+      <h6>{{ source_doc }} {{ chapter }}</h6>
+      {% for chapter, source_doc, sec_title, text, url in data %}   <!--start for loop over variable data-->
+      <div class="card">
+        <div class="card-body">
+          <h6 class="card-title"><a href="/provision/{{ url }}">{{ sec_title }}</a>
+          </h6>
+          <div class="card card-body">
+            {{ text }}
+          </div>
+        </div>
+      </div>
+      {% endfor %}  <!-- end for loop -->
+    </div>
+
+  </body>
+</html>

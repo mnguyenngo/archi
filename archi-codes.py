@@ -1,7 +1,7 @@
 from flask import Flask, render_template, request, jsonify, Markup
 from archi_nlp import Archi
 from render_text import render_text
-import datetime as dt
+# import datetime as dts
 
 app = Flask(__name__)
 
@@ -30,24 +30,54 @@ def index(results=None):
     #     return render_template('archi-codes.html', results)
 
 
-@app.route('/solve', methods=['POST'])
-def solve():
+@app.route('/predict', methods=['POST'])
+def predict():
+    """Returns the nlp prediction given the user's query"""
     user_query = request.json
-    print(user_query)
     # predict returns results and the nlp output of the user query
     results, query_doc = archi.predict(user_query)
-    print(type(results))
-    data = [(result[1]['nlp_chapter_title'].text,
-             result[1]['source_doc']['title'],
-             result[1]['title'],
-             result[1]['nlp_code_text'].text,
-             round(result[1]['score'], 2)) for result in results.iterrows()]
+    data = [(result[1]['nlp_chapter_title'].text,  # chapter title text
+             result[1]['source_doc']['title'],  # book title
+             result[1]['title'],  # section title text
+             result[1]['nlp_code_text'].text,  # provision text
+             # score value rounded to the two decimal points
+             round(result[1]['score'], 2),
+             # url for provision section
+             "_".join(result[1]['section_num'][:2])) for result in results.iterrows()]
     rendered_query = render_text(query_doc)
-    uq_annotated = render_template('annotate_text.html', data=Markup(rendered_query))
+    uq_annotated = render_template('annotate_text.html',
+                                   data=Markup(rendered_query))
     table = render_template('cards.html', data=data)
     return jsonify({'user_query': uq_annotated,
                     'table': table})
-    # index(results=results)
+
+
+@app.route('/provision/<variable>', methods=['GET'])
+def provision_page(variable):
+    """Returns the information for the provision"""
+    section_num = variable.split('_')
+    results = (archi.nlp_data.loc[archi.nlp_data['section_num']
+               .apply(lambda x: _check_section_num(x, section_num))])
+    data = [(result[1]['nlp_chapter_title'].text,  # chapter title text
+             result[1]['source_doc']['title'],  # book title
+             result[1]['title'],  # section title text
+             result[1]['nlp_code_text'].text,  # provision text
+             # url for provision section
+             "_".join(result[1]['section_num'][:2])) for result in results.iterrows()]
+    chapter = data[0][0]
+    source_doc = data[0][1]
+    return render_template("provision.html", data=data, chapter=chapter,
+                           source_doc=source_doc)
+
+
+def _check_section_num(tup, check):
+    """Helper function for provision_page()"""
+    if tup is not None and len(check) == 1:
+        return tup[0] == check[0]
+    elif tup is not None and len(check) > 1 and len(tup) > 1:
+        return tup[0] == check[0] and tup[1] == check[1]
+    else:
+        return False
 
 
 if __name__ == '__main__':

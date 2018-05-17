@@ -5,7 +5,7 @@ let get_query = function() {
 
 let send_query_json = function(query) {
     $.ajax({
-        url: '/solve',
+        url: '/predict',
         contentType: "application/json; charset=utf-8",
         type: 'POST',
         data: JSON.stringify(query),

@@ -256,7 +256,7 @@ class Archi(object):
         chap_title_scores = self.nlp_data['nlp_chapter_title'].apply(
                             lambda x: self.cos_sim(qdoc.vector, x))
         scores = pd.concat([code_text_scores, sec_title_scores, chap_title_scores], axis=1)
-        scores['total'] = scores.max(axis=1)
+        scores['total'] = scores.mean(axis=1)
         # print(scores)
         return scores['total']
 
