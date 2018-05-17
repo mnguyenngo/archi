@@ -5,38 +5,38 @@
 
     <title>AI on Building Regulations</title>
     <meta name="description" content="AI on Building Regulations">
-
+    <meta name="author" content="Nguyen Ngo">
     <!-- load the jquery.js before the js for the app -->
     <script type="text/javascript" src={{ url_for('static', filename='jquery.js') }}> </script>
-    <meta name="author" content="Nguyen Ngo">
+    <script type="text/javascript" src={{ url_for('static', filename='js/bootstrap.min.js') }}> </script>
     <script type="text/javascript" src={{ url_for('static', filename='archi-codes.js') }}>  </script>
 
-    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/bootstrap.css') }}">
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/bootstrap.min.css') }}">
     <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/archi.css') }}">
 
   </head>
 
   <body>
 
-  <h2>archi.codes<sup><span class="badge badge-secondary" style="font-size:12px">beta</span></sup></h2>
+  <h2 id="title-text">archi.codes<sup><span class="badge badge-secondary" style="font-size:12px">beta</span></sup></h2>
 
-    <p>Archi has memorized the building code and can help you navigate the domain of building regulations</p>
+    <span id="description-text">Archi has memorized the building code and can help you navigate the domain of building regulations</span>
 
-    <div class="input-group">
+    <div class="input-group" id="user-query">
       <div class="input-group-prepend">
         <span class="input-group-text">Ask Archi</span>
       </div>
-      <textarea class="form-control" aria-label="With textarea" id="query" name="query" rows="4" cols="50" placeholder="Enter your research topic here" wrap="soft"></textarea>
+      <textarea class="form-control" aria-label="With textarea" id="user-query" name="user-query" rows="4" cols="50" placeholder="Enter your research topic here" wrap="soft"></textarea>
     </div>
 
-    <div>
-      <button type="button" class="btn btn-primary" id="solve">RUN</button>
+    <div id="predict-button">
+      <button type="button" class="btn btn-primary" id="predict">RUN</button>
     </div>
 
     <div>
 
       <p id="uq-title"></p>
-      <div id="user-query"></div>
+      <div id="show-user-query"></div>
       <div id="result-table"></div>
       <!-- <p id="first-match-text"></p> -->
     </div>

@@ -37,8 +37,10 @@ def solve():
     # predict returns results and the nlp output of the user query
     results, query_doc = archi.predict(user_query)
     print(type(results))
-    data = [(result[1]['title'],
-             result[1]['code'],
+    data = [(result[1]['nlp_chapter_title'].text,
+             result[1]['source_doc']['title'],
+             result[1]['title'],
+             result[1]['nlp_code_text'].text,
              round(result[1]['score'], 2)) for result in results.iterrows()]
     rendered_query = render_text(query_doc)
     uq_annotated = render_template('annotate_text.html', data=Markup(rendered_query))
