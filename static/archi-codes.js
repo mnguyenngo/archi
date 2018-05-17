@@ -1,5 +1,5 @@
 let get_query = function() {
-    let q = $("textarea#query").val()
+    let q = $("textarea#user-query").val()
     return q
 };
 
@@ -18,15 +18,15 @@ let send_query_json = function(query) {
 
 let display_results = function(results) {
     let uq_title = $("p#uq-title")
-    uq_title.text("Your query:")
-    let user_query = $("p#user-query")
-    user_query.text(results.user_query)
+    uq_title.text("Your query")
+    let user_query = $("div#show-user-query")
+    user_query.html(results.user_query)
     let result_table = $("div#result-table")
     result_table.html(results.table)
 };
 
 $(document).ready(function() {
-    $("button#solve").click(function() {
+    $("button#predict").click(function() {
         let query = get_query();
         send_query_json(query);
     })

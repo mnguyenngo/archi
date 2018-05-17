@@ -1,14 +1,22 @@
 <!DOCTYPE html>
 <div>
-  {% for title, text, score in data %}   <!--start for loop over variable data-->
+  {% for chapter, doc_title, sec_title, text, score in data %}   <!--start for loop over variable data-->
   <div class="card">
     <div class="card-header">
-      <span style="align: right"><small class="text-muted">{{ score }}</small></span>
+      <span class="left"><small class="text-muted">{{ doc_title }}, {{ chapter }}</small></span>
+      <span class="right"><small class="text-muted">{{ score }} match</small></span>
     </div>
-    <!-- <img class="card-img-top" src=".../100px180/" alt="Card image cap"> -->
     <div class="card-body">
-      <h5 class="card-title">{{ title }}</h5>
-      <p class="card-text">{{ text }}</p>
+      <h6 class="card-title">{{ sec_title }}
+        {% if text|length > 0 %}
+          <small class="text-muted"><a data-toggle="collapse" href="#collapse{{ loop.index }}" role="button" aria-expanded="false" aria-controls="collapse{{ loop.index }}">toggle text</a></small>
+        {% endif %}
+      </h6>
+      <div class="collapse multi-collapse" id="collapse{{ loop.index }}">
+        <div class="card card-body">
+          {{ text }}
+        </div>
+      </div>
       <!-- <a href="#" class="btn btn-primary">Go somewhere</a> -->
     </div>
   </div>
