@@ -305,9 +305,9 @@ class Archi(object):
                          'source_doc': source_doc}
         return document_info
 
-    def find_edges(self, node):
-        edges = node.create_edges()
-        return edges
+    # def find_edges(self, node):
+    #     edges = node.create_edges()
+    #     return edges
 
     def build_db(self, coll_name=None):
         # if coll_name is None, create new db

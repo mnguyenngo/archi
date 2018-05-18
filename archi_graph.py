@@ -222,6 +222,7 @@ class Node(object):
                                       chap_num,
                                       branch_provision_type='chapter')
                         e = Edge(base_node_info, branch_node)
+                        e.add_property_related_to()
                         edges.append(e)
             return edges
         else:
@@ -287,8 +288,11 @@ class Edge(object):
 
     def build_edge(self):
         e = {"@context": "http://archi.codes/",  # url
-             "@type": "edge"}  # schema type
+             "@type": "edge"}  # wikidata prop code for 'related to'
 
         e['base_node'] = self.base_node
         e['branch_node'] = self.branch_node
         return e
+
+    def add_property_related_to(self):
+        self.edge['@property'] = 'P1628'
