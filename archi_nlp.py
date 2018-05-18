@@ -326,10 +326,15 @@ class Archi(object):
         node = self.build_node(row)  # dtype: node object
         edges = node.create_edges()  # dtype: list of edge objects
         if type(node.node) == dict:
-            print('foonode')
+            # print('foonode')
             coll.insert_one(node.node)
+        if len(node.ancilliary_nodes) > 0:
+            for comp_node in node.ancilliary_nodes:
+                # insert comp_node only if it does not exist in database
+                coll.update({'name': comp_node.node['name']}, comp_node.node,
+                            upsert=True)
         if edges is not None:
             for edge in edges:
                 if type(edge.edge) == dict:
-                    print('fooedge')
+                    # print('fooedge')
                     coll.insert_one(edge.edge)
