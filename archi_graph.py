@@ -291,9 +291,7 @@ class Node(object):
         return prov_names
 
     def package_branch_node(self, sec_num, branch_provision_type='section'):
-        # check if provision node exists or not
-        # if exists, update the provision node with the rel edge
-        # if does not exist, create new provision node
+        """Package dictionary value to be set as branch_node for edge object"""
         source_doc = self.node['documentInfo']['source_doc']
         branch_node = {'source_doc': source_doc}
         chapter = {}

@@ -3,8 +3,8 @@
   <head>
     <meta charset="utf-8">
 
-    <title>AI on Building Regulations</title>
-    <meta name="description" content="AI on Building Regulations">
+    <title>Ask Archi</title>
+    <meta name="description" content="Knowledge Graphs for AEC">
     <meta name="author" content="Nguyen Ngo">
     <!-- load the jquery.js before the js for the app -->
     <script type="text/javascript" src={{ url_for('static', filename='jquery.js') }}> </script>
@@ -21,14 +21,15 @@
     <h2 id="title-text">archi.codes<sup><span class="badge badge-secondary" style="font-size:12px">beta</span></sup></h2>
 
     <div>
-      <h6>{{ source_doc }} {{ chapter }}</h6>
-      {% for chapter, source_doc, sec_title, text, url in data %}   <!--start for loop over variable data-->
+      <h6>{{ data[0]['documentInfo']['source_doc']['title'] }} {{ data[0]['documentInfo']['chapter']['chapter_title'] }}</h6>
+      {% for prov in data %}   <!--start for loop over variable data-->
       <div class="card">
         <div class="card-body">
-          <h6 class="card-title"><a href="/provision/{{ url }}">{{ sec_title }}</a>
+          <h6 class="card-title"><a href="/provision/{{ prov['documentInfo']['section']['section_num'][:2]|join('_') }}">
+            {{ prov['documentInfo']['section']['section_num']|join(".") }} {{ prov["documentInfo"]["section"]["section_title"] }}</a>
           </h6>
           <div class="card card-body">
-            {{ text }}
+            {{ prov['text'] }}
           </div>
         </div>
       </div>

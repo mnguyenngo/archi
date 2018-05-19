@@ -29,6 +29,13 @@ class Archi(object):
             self.nlp = spacy.load('en_core_web_lg')
         else:
             self.nlp = spacy.load(nlp_model_name)
+        self.mongo_coll = self.start_mongo()
+
+    def start_mongo(self):
+        client = MongoClient()
+        db = client['archi']
+        coll = db['archi_180517']
+        return coll
 
     def get_raw_data(self, path, default_process=True):
         """Get raw data from pickle files"""
@@ -231,34 +238,65 @@ class Archi(object):
     #
     #     return json_df
 
-    def predict(self, query):
+    def predict(self, query, data_on="pandas"):
         """Returns top ten docs"""
         qdoc = self.nlp(query)
-        top_ten = self.score_df(qdoc).sort_values(ascending=False)[:10]
-        top_ten_idx = top_ten.index
-        top_ten_df = self.nlp_data.iloc[top_ten_idx]
+        scores = self.score_df(qdoc, data_on)
+        top_ten = (scores.sort_values(by='total', ascending=False)[:10])
+        top_ten_idx = list(top_ten['_id'].values)
+        # top_ten_idx = [str(objid) for objid in top_ten_idx]
+
+        top_ten_prov = list(self.mongo_coll.find( {'_id': { '$in': top_ten_idx}} ))
         # top_ten_df_dp = self.add_keyword_cols(top_ten_df)  # dependecy parsed
         # top_ten_df_dp['scores'] = top_ten_df_dp.merge(top_ten, how='left',
         #                                               left_index=True)
-        top_ten_df['score'] = top_ten
+        # top_ten_df['score'] = top_ten
+        for prov in top_ten_prov:
+            _id = prov['_id']
+            mask = top_ten['_id'].apply(lambda x: self._check_id(x, _id))
+            score = top_ten.loc[mask]['total'].values[0]
+            score = round(score, 2)
+            prov['score'] = score
+            # sec_for_url = prov['documentInfo']['section']['section_num']
+            # prov['url'] = "_".join(sec_for_url[:2])
+        top_ten_prov = sorted(top_ten_prov, key=lambda x: x['score'], reverse=True)
         # top_ten_kg = []  # empty knowledge graph object
         # for row in top_ten_df.iterrows():
         #     top_ten_kg.append(self.build_kg(row))
-        return top_ten_df, qdoc  # return qdoc for rendering on web app
+        return top_ten_prov, qdoc  # return qdoc for rendering on web app
 
-    def score_df(self, qdoc):
+    def _check_id(self, _id, check_id):
+        return str(_id) == str(check_id)
+
+    def score_df(self, qdoc, data_on="pandas"):
         """Return a pandas series with the cos_sim scores of the query vs
         the raw nlp docs"""
-        code_text_scores = self.nlp_data['nlp_code_text'].apply(
-                           lambda x: self.cos_sim(qdoc.vector, x))
-        sec_title_scores = self.nlp_data['nlp_section_title'].apply(
-                           lambda x: self.cos_sim(qdoc.vector, x))
-        chap_title_scores = self.nlp_data['nlp_chapter_title'].apply(
-                            lambda x: self.cos_sim(qdoc.vector, x))
+        if data_on is "pandas":
+            df = self.nlp_data
+            code_text_scores = df['nlp_code_text'].apply(
+                               lambda x: self.cos_sim(qdoc.vector, x))
+            sec_title_scores = df['nlp_section_title'].apply(
+                               lambda x: self.cos_sim(qdoc.vector, x))
+            chap_title_scores = df['nlp_chapter_title'].apply(
+                                lambda x: self.cos_sim(qdoc.vector, x))
+        elif data_on is "mongo":
+            # client = MongoClient()
+            # db = client['archi']
+            # coll = db['archi_180517']
+            df = pd.DataFrame(list(self.mongo_coll.find( {'@type': 'provision'} )))
+            code_text_scores = df['text_nlp_vector'].apply(
+                               lambda x: self.cos_sim(qdoc.vector, x))
+            sec_title_scores = df['section_nlp_vector'].apply(
+                               lambda x: self.cos_sim(qdoc.vector, x))
+            chap_title_scores = df['chapter_nlp_vector'].apply(
+                                lambda x: self.cos_sim(qdoc.vector, x))
+        else:
+            return None
+
         scores = pd.concat([code_text_scores, sec_title_scores, chap_title_scores], axis=1)
         scores['total'] = scores.mean(axis=1)
-        # print(scores)
-        return scores['total']
+        scores['_id'] = df['_id']
+        return scores[['_id', 'total']]
 
     def cos_sim(self, query_vec, code_doc):
         """Calculates and returns the cosine similarity value
@@ -269,15 +307,18 @@ class Archi(object):
         the result falls between 0 and 1, which is expected.
         """
         if code_doc is not None:
-            if len(code_doc) > 0:
-                code_vec = code_doc.vector
-                if len(list(code_doc.sents)) > 1:
-                    code_first_sent = list(code_doc.sents)[0]
-                    code_vec = code_first_sent.vector
-                if len(query_vec) == len(code_vec):
-                    return (np.sum((query_vec * code_vec))
-                            / (np.sqrt(np.sum((query_vec ** 2)))
-                               * np.sqrt(np.sum((code_vec ** 2)))))
+            if type(code_doc) is not float:  # do not check nan values
+                if type(code_doc) == list:
+                    code_vec = np.array(code_doc)
+                elif len(code_doc) > 0:
+                    code_vec = code_doc.vector
+                    if len(list(code_doc.sents)) > 1:
+                        code_first_sent = list(code_doc.sents)[0]
+                        code_vec = code_first_sent.vector
+                # if len(query_vec) == len(code_vec):
+                return (np.sum((query_vec * code_vec))
+                        / (np.sqrt(np.sum((query_vec ** 2)))
+                           * np.sqrt(np.sum((code_vec ** 2)))))
             else:
                 return 0
         else:
@@ -324,17 +365,23 @@ class Archi(object):
         coll = db[coll_name]
 
         node = self.build_node(row)  # dtype: node object
-        edges = node.create_edges()  # dtype: list of edge objects
         if type(node.node) == dict:
-            # print('foonode')
             coll.insert_one(node.node)
-        if len(node.ancilliary_nodes) > 0:
+        # insert ancilliary nodes
+        # anc_nodes are component nodes
+        if len(node.ancilliary_nodes) > 0:  # insert ancilliary nodes
             for comp_node in node.ancilliary_nodes:
                 # insert comp_node only if it does not exist in database
                 coll.update({'name': comp_node.node['name']}, comp_node.node,
                             upsert=True)
+
+        edges = node.create_edges()  # dtype: list of edge objects
         if edges is not None:
             for edge in edges:
                 if type(edge.edge) == dict:
-                    # print('fooedge')
-                    coll.insert_one(edge.edge)
+                    if type(edge.base_node) == dict:
+                        coll.insert_one(edge.edge)
+                    # insert edge only if edge does not exist in database
+                    if type(edge.base_node) == str:
+                        coll.update({'base_node': edge.base_node,
+                                     'branch_node': edge.branch_node}, edge.edge, upsert=True)
