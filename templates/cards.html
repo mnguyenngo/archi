@@ -1,20 +1,20 @@
 <!DOCTYPE html>
 <div>
-  {% for chapter, doc_title, sec_title, text, score, url in data %}   <!--start for loop over variable data-->
+  {% for prov in data %}   <!--start for loop over variable data-->
   <div class="card">
     <div class="card-header">
-      <span class="left"><small class="text-muted">{{ doc_title }}, {{ chapter }}</small></span>
-      <span class="right"><small class="text-muted">{{ score }} match</small></span>
+      <span class="left"><small class="text-muted">{{ prov["documentInfo"]["source_doc"]["title"] }}, {{ prov["documentInfo"]["chapter"]["chapter_title"] }}</small></span>
+      <span class="right"><small class="text-muted">{{ prov["score"] }} match</small></span>
     </div>
     <div class="card-body">
-      <h6 class="card-title"><a href="/provision/{{ url }}">{{ sec_title }}</a>
-        {% if text|length > 0 %}
+      <h6 class="card-title"><a href="/provision/{{ prov['documentInfo']['section']['section_num'][:2]|join('_') }}">{{ prov['documentInfo']['section']['section_num']|join(".") }} {{ prov["documentInfo"]["section"]["section_title"] }}</a>
+        {% if prov["text"]|length > 0 %}
           <small class="text-muted"><a data-toggle="collapse" href="#collapse{{ loop.index }}" role="button" aria-expanded="false" aria-controls="collapse{{ loop.index }}">toggle text</a></small>
         {% endif %}
       </h6>
       <div class="collapse multi-collapse" id="collapse{{ loop.index }}">
         <div class="card card-body">
-          {{ text }}
+          {{ prov["text"] }}
         </div>
       </div>
     </div>
