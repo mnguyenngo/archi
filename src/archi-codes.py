@@ -1,6 +1,6 @@
 from flask import Flask, render_template, request, jsonify, Markup
 from archi_nlp import Archi
-from render_text import render_text
+from render_text import render_text, find_components
 # import pandas as pd
 # from pymongo import MongoClient
 # import datetime as dt
@@ -26,12 +26,35 @@ def predict():
     user_query = request.json
     # predict returns results and the nlp output of the user query
     results, query_doc = archi.predict(user_query, data_on="mongo")
-    rendered_query = render_text(query_doc)
+
+    # replace noun chunks with html to highlight noun chunks
+    # render_components = []
+
+
+    table = render_template('cards.html', data=results)
+
+    """Return related provisions for each component in user query"""
+    possible_comps = find_components(query_doc)
+    # print(possible_comps)
+    comp_results = {}
+
+    for comp in possible_comps:
+        prov_edges = list(archi.mongo_coll.find(
+            {'@property': 'P518', 'branch_node': comp}))
+        if len(prov_edges) > 0:
+            comp_results[comp] = prov_edges
+
+
+    prov_for_comps = render_template('components.html', data=comp_results)
+
+    rendered_query = render_text(query_doc, comp_results)
     uq_annotated = render_template('annotate_text.html',
                                    data=Markup(rendered_query))
-    table = render_template('cards.html', data=results)
+
     return jsonify({'user_query': uq_annotated,
-                    'table': table})
+                    'table': table,
+                    'components': prov_for_comps})
+
 
 
 @app.route('/provision/<variable>', methods=['GET'])
