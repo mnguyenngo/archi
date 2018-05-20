@@ -25,7 +25,7 @@ archi = Archi('en_core_web_lg')
 # archi.pickle_raw_nlp(f'data/nlp_df/nlp_{today}.pkl')
 
 # load data from mongodb
-# archi.get_mongo_coll()
+archi.start_mongo()
 
 
 @app.route('/', methods=['GET'])
