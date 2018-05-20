@@ -16,8 +16,8 @@ let send_query_json = function(query) {
 };
 
 let display_results = function(results) {
-    let uq_title = $("p#uq-title")
-    uq_title.text("Your query")
+    // let uq_title = $("p#uq-title")
+    // uq_title.text("Your query")
     let user_query = $("div#show-user-query")
     user_query.html(results.user_query)
     let result_table = $("div#result-table")

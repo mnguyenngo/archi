@@ -208,7 +208,7 @@ class Archi(object):
             doc = self.nlp(code_text)
             return doc
 
-    def predict(self, query, data_on="pandas"):
+    def predict(self, query, data_on="mongo"):
         """Returns top ten docs"""
         qdoc = self.nlp(query)
         scores = self.score_df(qdoc, data_on)
@@ -216,7 +216,7 @@ class Archi(object):
         top_ten_idx = list(top_ten['_id'].values)
         # top_ten_idx = [str(objid) for objid in top_ten_idx]
 
-        top_ten_prov = list(self.mongo_coll.find( {'_id': { '$in': top_ten_idx}} ))
+        top_ten_prov = list(self.mongo_coll.find({'_id': {'$in': top_ten_idx}}))
         # top_ten_df_dp = self.add_keyword_cols(top_ten_df)  # dependecy parsed
         # top_ten_df_dp['scores'] = top_ten_df_dp.merge(top_ten, how='left',
         #                                               left_index=True)
@@ -238,7 +238,7 @@ class Archi(object):
     def _check_id(self, _id, check_id):
         return str(_id) == str(check_id)
 
-    def score_df(self, qdoc, data_on="pandas"):
+    def score_df(self, qdoc, data_on="mongo"):
         """Return a pandas series with the cos_sim scores of the query vs
         the raw nlp docs"""
         if data_on is "pandas":
@@ -250,10 +250,7 @@ class Archi(object):
             chap_title_scores = df['nlp_chapter_title'].apply(
                                 lambda x: self.cos_sim(qdoc.vector, x))
         elif data_on is "mongo":
-            # client = MongoClient()
-            # db = client['archi']
-            # coll = db['archi_180517']
-            df = pd.DataFrame(list(self.mongo_coll.find( {'@type': 'provision'} )))
+            df = pd.DataFrame(list(self.mongo_coll.find({'@type': 'provision'})))
             code_text_scores = df['text_nlp_vector'].apply(
                                lambda x: self.cos_sim(qdoc.vector, x))
             sec_title_scores = df['section_nlp_vector'].apply(
@@ -274,7 +271,7 @@ class Archi(object):
         Warning:
         For some reason the spaCy result and numpy dot product function does
         not return the same result as the one shown below. With the code below,
-        the result falls between 0 and 1, which is expected.
+        the result falls between -1 and 1, which is expected.
         """
         if code_doc is not None:
             if type(code_doc) is not float:  # do not check nan values
