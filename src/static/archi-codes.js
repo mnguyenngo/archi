@@ -10,7 +10,6 @@ let send_query_json = function(query) {
         type: 'POST',
         data: JSON.stringify(query),
         success: function (data) {
-            console.log(data)
             display_results(data);
         }
     });
