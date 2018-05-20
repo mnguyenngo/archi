@@ -29,13 +29,17 @@ class Archi(object):
             self.nlp = spacy.load('en_core_web_lg')
         else:
             self.nlp = spacy.load(nlp_model_name)
-        self.mongo_coll = self.start_mongo()
+        self.mongo_coll = None
 
     def start_mongo(self):
+        # client = MongoClient(host=hostname, port=27017)
+        # db = client['archi_db']
+        # coll = db['archi_180519']
         client = MongoClient()
         db = client['archi']
-        coll = db['archi_180517']
-        return coll
+        date = self._created_date.strftime('%y%m%d')
+        coll = db['archi_{}'.format(date)]
+        self.mongo_coll = coll
 
     def get_raw_data(self, path, default_process=True):
         """Get raw data from pickle files"""
@@ -203,41 +207,6 @@ class Archi(object):
             doc = self.nlp(code_text)
             return doc
 
-    # def add_keyword_cols(self, predict_df):
-    #     """Add the subj and verb columns to the nlp_data"""
-    #     json_df = pd.DataFrame()
-    #     # copy the title and nlp_text columns to json_df
-    #     json_df['nlp_text'] = predict_df['nlp_text']
-    #     json_df['title'] = predict_df['title']
-    #     json_df['ROOT'] = (predict_df['nlp_text']
-    #                        .apply(lambda x:
-    #                        self.get_root(x, dep='ROOT', lemma=True)))
-    #     json_df['ROOT_TOKEN'] = (predict_df['nlp_text']
-    #                              .apply(lambda x:
-    #                              self.get_root(x, dep='ROOT', lemma=False)))
-    #     json_df['SUBJ'] = (predict_df['nlp_text']
-    #                        .apply(lambda x:
-    #                        self.get_token_by_dep(x, dep='nsubj', lemma=True)))
-    #     json_df['SUBJ_TOKEN'] = (predict_df['nlp_text']
-    #                              .apply(lambda x:
-    #                              self.get_token_by_dep(x,
-    #                                                    dep='nsubj',
-    #                                                    lemma=False)))
-    #     json_df['CRITICAL'] = (predict_df['nlp_text']
-    #                            .apply(lambda x:
-    #                            self.get_criteria(x,
-    #                                              dep='criteria',
-    #                                              lemma=True)))
-    #     json_df['CRITICAL_TOKEN'] = (predict_df['nlp_text']
-    #                                  .apply(lambda x:
-    #                                  self.get_criteria(x,
-    #                                                    dep='criteria',
-    #                                                    lemma=False)))
-    #     json_df['NEG'] = (predict_df['nlp_text']
-    #                       .apply(self.is_root_negative))
-    #
-    #     return json_df
-
     def predict(self, query, data_on="pandas"):
         """Returns top ten docs"""
         qdoc = self.nlp(query)
@@ -346,23 +315,16 @@ class Archi(object):
                          'source_doc': source_doc}
         return document_info
 
-    # def find_edges(self, node):
-    #     edges = node.create_edges()
-    #     return edges
 
-    def build_db(self, coll_name=None):
-        # if coll_name is None, create new db
-        if coll_name is None:
-            todays_date = self._created_date.strftime('%y%m%d')
-            coll_name = "archi_{}".format(todays_date)
-            print(coll_name)
-        self.nlp_data.apply(lambda x: self.build_db_pipeline(x, coll_name),
+    def build_db(self):
+        """Iterate through each row and send row through pipeline to add data
+            to the mongo database.
+        """
+        self.nlp_data.apply(lambda x: self.build_db_pipeline(x),
                             axis=1)
 
-    def build_db_pipeline(self, row, coll_name):
-        client = MongoClient()
-        db = client['archi']
-        coll = db[coll_name]
+    def build_db_pipeline(self, row):
+        coll = self.mongo_coll
 
         node = self.build_node(row)  # dtype: node object
         if type(node.node) == dict:
