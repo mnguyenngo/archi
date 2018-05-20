@@ -22,6 +22,10 @@ div#predict-button {
   padding-left: 10px;
 }
 
+div#show-user-query {
+  padding: 10px;
+}
+
 div#result-table {
   padding: 10px;
 }

@@ -7,8 +7,8 @@ def main():
     """
     print('Creating Archi...')
     archi = archi_nlp.Archi()
-    print('Getting nlp data...')
-    archi.get_nlp_data('data/nlp_df/nlp_0514.pkl')
+    print('Getting NLP data...')
+    archi.get_nlp_data('../data/nlp_df/nlp_0514.pkl')
     print('Starting mongo database...')
     archi.start_mongo()
     print('Adding data to database...')
