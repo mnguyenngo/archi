@@ -17,9 +17,7 @@ class Archi(object):
         """
         ARGS
         ----
-        raw_data: dataframe; may need to change to different format when
-                  deployed
-        trained_data: dataframe; same as raw data
+
         """
 
         self._created_date = dt.datetime.today()
@@ -73,6 +71,9 @@ class Archi(object):
         return source_doc
 
     def get_doc_data(self, on='raw'):
+        """Calls parse_title() to add columns for title data on either the
+            raw df or nlp df
+        """
         if on == 'raw':
             df = self.raw_data.copy()
             df = df.apply(self.parse_title, axis=1)
@@ -151,7 +152,7 @@ class Archi(object):
         return row
 
     def fill_chapter_title(self):
-        """Iterates through"""
+        """Iterates through each row and infers chapter title"""
         df = self.raw_data.copy()
         chapters = df[df['section_title'].isnull()]
         for row in chapters.iterrows():
