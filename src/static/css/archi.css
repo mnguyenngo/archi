@@ -13,8 +13,8 @@ div#user-query {
 }
 
 #noun-chunk {
-  background-color: #ff1111;
-  color: #ffffff
+  color: #ff1111;
+  font-weight: bolder;
 }
 
 div#predict-button {

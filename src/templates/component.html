@@ -29,6 +29,19 @@
           <div class="container">
             <div class="row">
               <div class="col-12 col-md-6">
+                <h6>Information from Wikipedia</h6>
+                <ul>
+                  {% if comp_node['wikipedia'] %}
+                    <li>
+                      Wikipedia: <a href="{{comp_node['wikipedia']}}">{{ comp_name }}</a>
+                    </li>
+                  {% endif %}
+                  {% if comp_node['wikidata'] %}
+                    <li>
+                      Wikidata: <a href="{{comp_node['wikidata']}}">{{ comp_node['wikidata_id'] }}</a>
+                    </li>
+                  {% endif %}
+                </ul>
                 <h6>Related Provisions:</h6>
                 <ul>
                   {% for edge in provisions %}   <!--start for loop over variable data-->
