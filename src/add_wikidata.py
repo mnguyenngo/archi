@@ -22,7 +22,7 @@ def get_wiki_content(name):
             if 'pageprops' in wiki_pages_values.keys():
                 try:
                     wd_id = wiki_pages_values['pageprops']['wikibase_item']
-                    wd_url = "'http://www.wikidata.org/entity/{}".format(wd_id)
+                    wd_url = "http://www.wikidata.org/entity/{}".format(wd_id)
                     print(wd_id)
                 except:
                     pass
