@@ -16,14 +16,12 @@ let send_query_json = function(query) {
 };
 
 let display_results = function(results) {
-    // let uq_title = $("p#uq-title")
-    // uq_title.text("Your query")
     let user_query = $("div#show-user-query")
     user_query.html(results.user_query)
     let comp_results = $("div#component-results")
     comp_results.html(results.components)
-    let result_table = $("div#result-table")
-    result_table.html(results.table)
+    let prov_results = $("div#provision-results")
+    prov_results.html(results.provisions)
 };
 
 $(document).ready(function() {

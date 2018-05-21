@@ -27,11 +27,7 @@ def predict():
     # predict returns results and the nlp output of the user query
     results, query_doc = archi.predict(user_query, data_on="mongo")
 
-    # replace noun chunks with html to highlight noun chunks
-    # render_components = []
-
-
-    table = render_template('cards.html', data=results)
+    prov_results = render_template('prov_cards.html', data=results)
 
     """Return related provisions for each component in user query"""
     possible_comps = find_components(query_doc)
@@ -44,17 +40,15 @@ def predict():
         if len(prov_edges) > 0:
             comp_results[comp] = prov_edges
 
-
-    prov_for_comps = render_template('components.html', data=comp_results)
+    prov_for_comps = render_template('comp_cards.html', data=comp_results)
 
     rendered_query = render_text(query_doc, comp_results)
     uq_annotated = render_template('annotate_text.html',
                                    data=Markup(rendered_query))
 
     return jsonify({'user_query': uq_annotated,
-                    'table': table,
+                    'provisions': prov_results,
                     'components': prov_for_comps})
-
 
 
 @app.route('/provision/<variable>', methods=['GET'])
@@ -75,6 +69,28 @@ def provision_page(variable):
     if len(sub) > 0:
         results = sub
     return render_template("provision.html", data=results)
+
+
+@app.route('/component/<comp>', methods=['GET'])
+def component_page(comp):
+    """Returns the information for the provision from mongo database"""
+    rel_prov = list(archi.mongo_coll.find(
+        {'@property': 'P518', 'branch_node': comp}))
+
+    rel_comp = list(archi.mongo_coll.find(
+        {'@property': 'P31', 'base_node': comp}))
+
+    base_type = list(archi.mongo_coll.find(
+        {'@property': 'P31', 'branch_node': comp}))
+
+    if len(base_type) > 0:
+        base_type = base_type[0]
+    else:
+        base_type = None
+
+    return render_template("component.html", provisions=rel_prov,
+                           comp_name=comp, components=rel_comp,
+                           base_type=base_type)
 
 
 def _check_section_num(docInfo, check):
