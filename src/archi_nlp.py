@@ -29,14 +29,21 @@ class Archi(object):
             self.nlp = spacy.load(nlp_model_name)
         self.mongo_coll = None
 
-    def start_mongo(self):
-        # client = MongoClient(host=hostname, port=27017)
-        # db = client['archi_db']
-        # coll = db['archi_180519']
+    def start_mongo(self, db_name=None, collection_name=None):
+        """Open existing database or creates a new one if none is provided"""
         client = MongoClient()
-        db = client['archi']
-        date = self._created_date.strftime('%y%m%d')
-        coll = db['archi_{}'.format(date)]
+        if db_name is None:
+            # create a new database
+            db = client['archi']
+        else:
+            db = client[db_name]
+        if collection_name is None:
+            # create a new collection
+            date = self._created_date.strftime('%y%m%d')
+            coll = db['archi_{}'.format(date)]
+        else:
+            coll = db[collection_name]
+
         self.mongo_coll = coll
 
     def get_raw_data(self, path, default_process=True):
