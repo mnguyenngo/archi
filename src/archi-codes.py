@@ -9,7 +9,7 @@ app = Flask(__name__)
 
 # initiate archi
 archi = Archi('en_core_web_lg')
-archi.start_mongo()
+archi.start_mongo(db_name='archi', collection_name='archi_180521')
 
 
 @app.route('/', methods=['GET'])
