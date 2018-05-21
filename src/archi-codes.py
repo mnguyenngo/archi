@@ -9,7 +9,7 @@ app = Flask(__name__)
 
 # initiate archi
 archi = Archi('en_core_web_lg')
-archi.start_mongo(db_name='archi', collection_name='archi_180521')
+archi.start_mongo(db_name='archi', collection_name='newest')
 
 
 @app.route('/', methods=['GET'])
@@ -31,18 +31,26 @@ def predict():
 
     """Return related provisions for each component in user query"""
     possible_comps = find_components(query_doc)
-    # print(possible_comps)
+
+    # find provisions for components in the user query
     comp_results = {}
+    wiki_results = {}
 
     for comp in possible_comps:
         prov_edges = list(archi.mongo_coll.find(
             {'@property': 'P518', 'branch_node': comp}))
         if len(prov_edges) > 0:
             comp_results[comp] = prov_edges
+        comp_node = list(archi.mongo_coll.find(
+            {'@type': 'component', 'name': comp}))
+        if len(comp_node) > 0:
+            # return only one component, only one is expected to exist in db
+            comp_node = comp_node[0]
+            wiki_results[comp] = comp_node
 
     prov_for_comps = render_template('comp_cards.html', data=comp_results)
 
-    rendered_query = render_text(query_doc, comp_results)
+    rendered_query = render_text(query_doc, wiki_results)
     uq_annotated = render_template('annotate_text.html',
                                    data=Markup(rendered_query))
 
@@ -51,10 +59,10 @@ def predict():
                     'components': prov_for_comps})
 
 
-@app.route('/provision/<variable>', methods=['GET'])
-def provision_page(variable):
+@app.route('/provision/<prov_num>', methods=['GET'])
+def provision_page(prov_num):
     """Returns the information for the provision from mongo database"""
-    section_num = variable.split('_')
+    section_num = prov_num.split('_')
 
     results = list(archi.mongo_coll.find(
         {'documentInfo.section.section_num.0': {'$eq': section_num[0]}}))
@@ -80,6 +88,11 @@ def component_page(comp):
     rel_comp = list(archi.mongo_coll.find(
         {'@property': 'P31', 'base_node': comp}))
 
+    comp_node = list(archi.mongo_coll.find(
+        {'@type': 'component', 'name': comp}))
+    comp_node = comp_node[0]
+    print(comp_node)
+
     base_type = list(archi.mongo_coll.find(
         {'@property': 'P31', 'branch_node': comp}))
 
@@ -90,7 +103,7 @@ def component_page(comp):
 
     return render_template("component.html", provisions=rel_prov,
                            comp_name=comp, components=rel_comp,
-                           base_type=base_type)
+                           base_type=base_type, comp_node=comp_node)
 
 
 def _check_section_num(docInfo, check):

@@ -40,11 +40,17 @@ class Archi(object):
         if collection_name is None:
             # create a new collection
             date = self._created_date.strftime('%y%m%d')
-            coll = db['archi_{}'.format(date)]
-        else:
-            coll = db[collection_name]
+            name = 'archi_{}'.format(date)
 
+        elif collection_name == 'newest':
+            coll_list = db.collection_names()
+            name = coll_list[-1]
+        else:
+            name = collection_name
+
+        coll = db[name]
         self.mongo_coll = coll
+        print('Using {}'.format(name))
 
     def get_raw_data(self, path, default_process=True):
         """Get raw data from pickle files"""
