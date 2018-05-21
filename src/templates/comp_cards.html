@@ -4,11 +4,11 @@
   {% for comp, prov_edges in data.items() %}   <!--data is a dictionary of components and its related provisions-->
   <div class="card">
     <div class="card-header">
-      {{ comp }}
+      <a href="/component/{{ comp }}">{{ comp }}</a>
     </div>
     <div class="card-body">
       <p class="card-title">
-        Related Provisions to {{ comp }}
+        Related Provisions to <span id="noun-chunk">{{ comp }}</span>
       </p>
 
       <div class="card card-body">

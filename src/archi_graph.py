@@ -1,16 +1,20 @@
-# import pandas as pd
-# import numpy as np
-# import spacy
-# import datetime as dt
+"""Node and Edge class objects"""
 
 
 class Node(object):
     """Node for an AEC knowledge graph
     Args:
         node_type (str): 'provision' or 'component'
-        document_info (dict): information about source document (provisions
-                              only)
-        text_nlp (spacy doc): provision nlp obj (provisions only)
+
+        For provision nodes:
+            document_info (dict): information about source document
+            text_nlp (spacy doc): provision text nlp object
+            section_nlp (spacy doc): section nlp obj
+            chaptedr_nlp (spacy doc): chapter nlp obj
+
+        For component node:
+            component: name of component
+
     Returns:
         Node class object
         (use .node to see the json object or python dict)
@@ -31,6 +35,7 @@ class Node(object):
     def build_node(self):
         """Creates node object; Called by __init__
         """
+        # Create provision node
         if self.node_type == 'provision':
             provision_node = ({
                 '@context': 'http://archi.codes/',
@@ -42,7 +47,7 @@ class Node(object):
             # returns base node if additional info is None
             return provision_node
 
-        # Placeholder for component node_type
+        # Create component node
         elif self.node_type == 'component':
             component_node = ({
                 '@context': 'http://archi.codes/',
