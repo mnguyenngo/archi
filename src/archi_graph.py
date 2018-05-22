@@ -1,33 +1,41 @@
-# import pandas as pd
-# import numpy as np
-# import spacy
-# import datetime as dt
+"""Node and Edge class objects"""
 
 
 class Node(object):
     """Node for an AEC knowledge graph
     Args:
         node_type (str): 'provision' or 'component'
-        document_info (dict): information about source document (provisions
-                              only)
-        text_nlp (spacy doc): provision nlp obj (provisions only)
+
+        For provision nodes:
+            document_info (dict): information about source document
+            text_nlp (spacy doc): provision text nlp object
+            section_nlp (spacy doc): section nlp obj
+            chaptedr_nlp (spacy doc): chapter nlp obj
+
+        For component node:
+            component: name of component
+
     Returns:
         Node class object
         (use .node to see the json object or python dict)
     """
 
     def __init__(self, node_type='provision', document_info=None,
-                 text_nlp=None, section_nlp=None, chapter_nlp=None):
+                 text_nlp=None, section_nlp=None, chapter_nlp=None,
+                 component=None):
         self.node_type = node_type
         self.document_info = document_info
         self.text_nlp = text_nlp
         self.section_nlp = section_nlp
         self.chapter_nlp = chapter_nlp
+        self.component = component
+        self.ancilliary_nodes = list()
         self.node = self.build_node()
 
     def build_node(self):
         """Creates node object; Called by __init__
         """
+        # Create provision node
         if self.node_type == 'provision':
             provision_node = ({
                 '@context': 'http://archi.codes/',
@@ -39,8 +47,14 @@ class Node(object):
             # returns base node if additional info is None
             return provision_node
 
-        # Placeholder for component node_type
+        # Create component node
+        elif self.node_type == 'component':
+            component_node = ({
+                '@context': 'http://archi.codes/',
+                '@type': 'component',
+                'name': self.component})
 
+            return component_node
         else:
             return None
 
@@ -55,8 +69,9 @@ class Node(object):
         if self.text_nlp is not None:
             if len(self.text_nlp) > 0:
                 provision_node["text"] = self.text_nlp.text  # provision text
+                first_sent = list(self.text_nlp.sents)[0]
                 provision_node["text_nlp_vector"] = (
-                    self.text_nlp.vector.tolist())
+                    first_sent.vector.tolist())
             else:
                 provision_node["text"] = None
                 provision_node["text_nlp_vector"] = None
@@ -64,7 +79,8 @@ class Node(object):
             # subject
             about_base, criteria, about, neg_root = (
                 self.parse_nlp_doc(self.text_nlp))
-            provision_node["about"] = about  # primary subject
+            if about is not None:
+                provision_node["about"] = about.text  # primary subject
             provision_node["criteria"] = criteria  # primary criteria
             provision_node["aboutBase"] = about_base  # primary subject lemma
             provision_node["negRoot"] = neg_root  # bool for negative root
@@ -82,30 +98,40 @@ class Node(object):
     def parse_nlp_doc(self, doc):
         root = self.get_root(doc, dep='ROOT', lemma=False)
         if root is not None:
-            if root.lemma_ is 'be':
-                """Parse nlp_doc for docs with root 'be'
-                Return:
-                    about_base (lemma): primary subj for categorization,
-                    ex. wall
-                    criteria (pobj): object of 'be'
-                    about (token as read): primary subject, ex. walls
-                """
-                print("the root is 'be'")
-                about_base = self.get_token_by_dep(doc, lemma=True)
-                criteria = self.get_criteria(doc, lemma=False)
-                about = self.get_token_by_dep(doc, lemma=False)
-                neg_root = self.is_root_negative(doc)
+            # if root.lemma_ is 'be':
+            """Parse nlp_doc and return the following tokens
+            Return:
+                about_base (lemma): primary subj for categorization,
+                ex. wall
+                criteria (pobj): object of 'be'
+                about (token as read): primary subject, ex. walls
+            """
+            about_base = self.get_token_by_dep(doc, lemma=True)
+            criteria = self.get_criteria(doc, lemma=False)
+            about = self.get_token_by_dep(doc, lemma=False)
+            neg_root = self.is_root_negative(doc)
+
+            # create nodes for about_base, aka components
+            # if node already exists, do nothing
+            about_node = Node(node_type='component', component=about_base)
+            self.ancilliary_nodes.append(about_node)
+            noun_chunk = self.get_nc_with_nsubj(doc, about)
+            if noun_chunk is not None:
+                type_node = Node(node_type='component',
+                                 component=" ".join(noun_chunk[-2:]))
+                self.ancilliary_nodes.append(type_node)
+            # create edges to link provision to component nodes
 
             # Placeholder for comply root
             # elif root.lemma_ is 'comply':
             #     print("the root is 'comply'")
             #     about_base, criteria, about = None, None, None
 
-            else:
-                about_base = self.get_token_by_dep(doc, lemma=True)
-                criteria = self.get_criteria(doc, lemma=False)
-                about = self.get_token_by_dep(doc, lemma=False)
-                neg_root = self.is_root_negative(doc)
+            # else:
+            #     about_base = self.get_token_by_dep(doc, lemma=True)
+            #     criteria = self.get_criteria(doc, lemma=False)
+            #     about = self.get_token_by_dep(doc, lemma=False)
+            #     neg_root = self.is_root_negative(doc)
             return about_base, criteria, about, neg_root
         else:
             return None, None, None, None
@@ -141,7 +167,7 @@ class Node(object):
                 if lemma:
                     return token.lemma_
                 else:
-                    return token.text
+                    return token
             else:
                 return None
         else:
@@ -196,6 +222,16 @@ class Node(object):
                        if token.dep_ == 'neg'])
             return len(matches) > 0
 
+    def get_nc_with_nsubj(self, doc, subj):
+        chunks = list(doc.noun_chunks)
+        if len(chunks) > 0:
+            for chunk in chunks:
+                if subj in chunk:
+                    lemma_chunk = ([word.lemma_ for word in chunk
+                                   if word.dep_ not in
+                                   ['conj', 'det', 'punct', 'cc']])
+                    return lemma_chunk
+
     def create_edges(self):
         """Create edge object that links to the current base node to a branch
            node.
@@ -222,7 +258,21 @@ class Node(object):
                                       chap_num,
                                       branch_provision_type='chapter')
                         e = Edge(base_node_info, branch_node)
+                        e.add_property_related_to()
                         edges.append(e)
+
+            for anc_node in self.ancilliary_nodes:
+                # name_of_comp = anc_node.node['name']
+                e = Edge(base_node_info, anc_node.node['name'])
+                e.add_property_applies_to()
+                edges.append(e)
+
+            if len(self.ancilliary_nodes) > 1:
+                base_comp_node_name = self.ancilliary_nodes[0].node['name']
+                for anc_node in self.ancilliary_nodes[1:]:
+                    e = Edge(base_comp_node_name, anc_node.node['name'])
+                    e.add_property_type_of()
+                    edges.append(e)
             return edges
         else:
             return None
@@ -246,9 +296,7 @@ class Node(object):
         return prov_names
 
     def package_branch_node(self, sec_num, branch_provision_type='section'):
-        # check if provision node exists or not
-        # if exists, update the provision node with the rel edge
-        # if does not exist, create new provision node
+        """Package dictionary value to be set as branch_node for edge object"""
         source_doc = self.node['documentInfo']['source_doc']
         branch_node = {'source_doc': source_doc}
         chapter = {}
@@ -287,8 +335,17 @@ class Edge(object):
 
     def build_edge(self):
         e = {"@context": "http://archi.codes/",  # url
-             "@type": "edge"}  # schema type
+             "@type": "edge"}  # wikidata prop code for 'related to'
 
         e['base_node'] = self.base_node
         e['branch_node'] = self.branch_node
         return e
+
+    def add_property_related_to(self):
+        self.edge['@property'] = 'P1628'
+
+    def add_property_applies_to(self):
+        self.edge['@property'] = 'P518'
+
+    def add_property_type_of(self):
+        self.edge['@property'] = 'P31'

@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<div>
+  <h4>Entities Found</h4>
+  {% for comp, prov_edges in data.items() %}   <!--data is a dictionary of components and its related provisions-->
+  <div class="card">
+    <div class="card-header">
+      <a href="/component/{{ comp }}">{{ comp }}</a>
+    </div>
+    <div class="card-body">
+      <p class="card-title">
+        Related Provisions
+      </p>
+
+      <div class="card card-body">
+        {% for prov in prov_edges %}
+          <a href="/provision/{{ prov['base_node']['section']['section_num'][:2]|join('_') }}">
+            {{ prov['base_node']['section']['section_num']|join(".") }} {{ prov['base_node']['section']['section_title'] }}
+          </a>
+        {% endfor %}  <!-- end for inner loop -->
+      </div>
+
+    </div>
+  </div>
+  {% endfor %}  <!-- end for outer loop -->
+</div>

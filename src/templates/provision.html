@@ -20,25 +20,20 @@
 
     <h2 id="title-text"><a href="/">archi.codes</a><sup><span class="badge badge-secondary" style="font-size:12px">beta</span></sup></h2>
 
-    <span id="description-text">Archi has memorized the building code and can help you navigate the domain of building regulations</span>
-
-    <div class="input-group" id="user-query">
-      <div class="input-group-prepend">
-        <span class="input-group-text">Ask Archi</span>
-      </div>
-      <textarea class="form-control" aria-label="With textarea" id="user-query" name="user-query" rows="4" cols="50" placeholder="Enter your research topic here" wrap="soft"></textarea>
-    </div>
-
-    <div id="predict-button">
-      <button type="button" class="btn btn-primary" id="predict">RUN</button>
-    </div>
-
     <div>
-
-      <p id="uq-title"></p>
-      <div id="show-user-query"></div>
-      <div id="result-table"></div>
-      <!-- <p id="first-match-text"></p> -->
+      <h6>{{ data[0]['documentInfo']['source_doc']['title'] }} {{ data[0]['documentInfo']['chapter']['chapter_title'] }}</h6>
+      {% for prov in data %}   <!--start for loop over variable data-->
+      <div class="card">
+        <div class="card-body">
+          <h6 class="card-title"><a href="/provision/{{ prov['documentInfo']['section']['section_num'][:2]|join('_') }}">
+            {{ prov['documentInfo']['section']['section_num']|join(".") }} {{ prov["documentInfo"]["section"]["section_title"] }}</a>
+          </h6>
+          <div class="card card-body">
+            {{ prov['text'] }}
+          </div>
+        </div>
+      </div>
+      {% endfor %}  <!-- end for loop -->
     </div>
 
   </body>

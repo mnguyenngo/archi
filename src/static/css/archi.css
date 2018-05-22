@@ -1,0 +1,44 @@
+#title-text {
+  padding: 10px;
+}
+
+#description-text {
+  padding-left: 10px;
+}
+
+div#user-query {
+  margin: auto;
+  /* margin-left: 20px; */
+  padding: 10px;
+}
+
+#noun-chunk {
+  color: #ff1111;
+  font-weight: bolder;
+}
+
+div#predict-button {
+  /* margin-left: 20px; */
+  padding-left: 10px;
+}
+
+div#show-user-query {
+  padding: 10px;
+}
+
+div#results {
+  padding: 10px;
+}
+
+div.card {
+  margin: 5px;
+}
+
+div.card-header, div.card-body {
+  padding: .25rem 1.25rem;
+}
+
+span.right {
+  text-align: right;
+  float: right;
+}
