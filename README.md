@@ -1,4 +1,4 @@
-# [archi.codes](www.archi.codes)
+# [archi.codes](http://www.archi.codes)
 
 ## TOC
 
