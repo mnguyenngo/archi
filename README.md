@@ -6,6 +6,7 @@
 2. [Procedure](#procedure)
 3. [Tech Stack](#tech-stack)
 4. [Web Application](#web-application)
+5. [Changes in v0.2](#changes-in-v0.2)
 
 ## About
 ***NLP and knowledge graphs for AEC using spaCy***
@@ -38,3 +39,8 @@ The application returns two outputs:
 
 #### Provision View
 ![Provision View](slides/images/provision.png)
+
+## Changes in v0.2
+* Support for SQL
+* Support for neo4j
+* Test-driven development
